@@ -9,6 +9,7 @@ import torch.nn as nn
 from torch.utils.tensorboard import SummaryWriter
 
 from mnist_network import ClassifierNetwork
+from performance_monitor import PerformanceMonitor
 from tensorboard_writer import TensorboardWriter
 
 models_path = './models/'
@@ -32,7 +33,7 @@ def do_main():
     trainset = torchvision.datasets.FashionMNIST(root='./data', train=True,
                                             download=True, transform=transform)
     trainloader = torch.utils.data.DataLoader(trainset, batch_size=batch_size,
-                                              shuffle=True, num_workers=2,  pin_memory=True)
+                                              shuffle=True, num_workers=0,  pin_memory=True)
 
     # testset = torchvision.datasets.FashionMNIST(root='./data', train=False,
     #                                        download=True, transform=transform)
@@ -58,24 +59,20 @@ def train(trainset, trainloader, device, classes):
     # images, labels = select_n_random(trainset.data, trainset.targets, 1000)
     # add_image_embeddings(writer, images, labels, classes)
 
-    loss_window = 200 # Compute loss every X steps
-    avg_loss = None
-
     global_step = 0
+    perf = PerformanceMonitor()
 
     for epoch in range(1):
         print()
         print(f"=== EPOCH {epoch} ========")
         print()
 
-        running_loss = 0.0
-        correct = 0
-        total_pred = 0
-
         # Create a progress bar
         progress = tqdm(enumerate(trainloader, 0), total=len(trainloader), colour='green')
 
         for step, data in progress:
+            perf.reset()
+
             input, labels = data
             input, labels = input.to(device), labels.to(device)
 
@@ -84,36 +81,27 @@ def train(trainset, trainloader, device, classes):
 
             output = net(input)
             loss = criterion(output, labels)
-
-            # print statistics
-            running_loss += loss.item()
+            perf.loss.append(loss.item())
 
             # zero the parameter gradients
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
 
-            _, predicted = torch.max(output.data, 1)
-            total_pred += labels.size(0)
-            correct += (predicted == labels).float().sum()
-            accuracy = 100 * correct / total_pred
+            # Track training stats
+            perf.add_predictions(output, labels)
 
-            if step % loss_window == loss_window - 1:  # print every x mini-batches
-                avg_loss = running_loss / loss_window
-                global_step = epoch * len(trainloader) + step
-                writer.add_scalar("Loss/train", avg_loss, global_step)
+            global_step = epoch * len(trainloader) + step
+            writer.add_scalar("Loss/train", loss.item(), global_step)
 
-                # Log accuracy
-                writer.add_scalar("Accuracy/train", accuracy, global_step)
-
-                running_loss = 0.0
+            # Log accuracy
+            writer.add_scalar("Accuracy/train", perf.get_accuracy(), global_step)
 
             desc = f"Step: {step} / Loss: "
 
-            if(avg_loss is None):
-                desc += "n/a"
-            else:
-                desc += f"{avg_loss:.3f}"
+            avg_loss = perf.get_avg_loss()
+            desc += f"{avg_loss:.3f}" if avg_loss else "n/a"
+            desc += f" / Accy: {perf.get_accuracy():.3f} "
 
             progress.set_description(desc)
 
