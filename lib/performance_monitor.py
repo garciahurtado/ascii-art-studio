@@ -1,7 +1,6 @@
 import numpy as np
 import torch
 
-
 class PerformanceMonitor:
     """Maintains the prediction performance state of several variables in order
     to facilitate calculating training stats like avg. loss and accuracy"""
@@ -18,9 +17,10 @@ class PerformanceMonitor:
 
     def add_predictions(self, results, labels):
         self.total_predictions += labels.size(0)
-
         _, predicted = torch.max(results.data, 1)
-        correct = int((predicted == labels).float().sum())
+        predicted = torch.reshape(predicted, [labels.size(0),1])
+
+        correct = (predicted == labels).sum().item()
         self.correct_predictions += correct
 
     def get_accuracy(self):

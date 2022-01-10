@@ -1,5 +1,4 @@
-from datetime import datetime
-from tqdm import tqdm, trange
+from tqdm import tqdm
 
 import torch
 import torchvision
@@ -8,13 +7,13 @@ import torch.optim as optim
 import torch.nn as nn
 from torch.utils.tensorboard import SummaryWriter
 
-from mnist_network import ClassifierNetwork
+from net.mnist_network import ClassifierNetwork
 from performance_monitor import PerformanceMonitor
 from tensorboard_writer import TensorboardWriter
 
 models_path = './models/'
 
-def do_main():
+def main():
     if torch.cuda.is_available():
         device = torch.device('cuda')
         print("Using CUDA driver")
@@ -138,5 +137,4 @@ def calc_accuracy(model: torch.nn.Module, x: torch.Tensor, y: torch.Tensor) -> f
     return acc
 
 if __name__ == "__main__":
-    # print("Exiting")
-    do_main()
+    main()

@@ -1,2 +1,6 @@
 /logs/
 /data/
+/lib/datasets/ascii_amstrad_cpc/data/test/
+/lib/datasets/ascii_amstrad_cpc/data/train/
+/wandb/
+/models/
