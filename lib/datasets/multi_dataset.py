@@ -86,12 +86,6 @@ class MultiDataset(Dataset):
 
         image_data = np.asarray(image_data).reshape(8,8,-1)  # Because of Pytorch's channel first convention
 
-
-        # The following condition is actually needed in Pytorch. Otherwise, for our particular example, the iterator will be an infinite loop.
-        # Readers can verify this by removing this condition.
-        if idx == self.__len__():
-            raise IndexError
-
         if self.transform:
             image_data = self.transform(image_data)
 

@@ -1,4 +1,8 @@
 import numpy as np
+import pandas as pd
+import torchvision
+from matplotlib import pyplot as plt
+from imblearn.over_sampling import SMOTE
 import torchmetrics
 import os
 import sys
@@ -9,75 +13,67 @@ from sklearn.model_selection import train_test_split
 from torch.utils.data import Subset
 
 import wandb
+from focal_loss import FocalLoss
 
 sys.path.append('./lib')
 
-from torchvision.transforms import Lambda
 from tqdm import tqdm
 
 import torch
 import torchvision.transforms as transforms
 import torch.optim as optim
 import torch.nn as nn
-from torch.utils.tensorboard import SummaryWriter
 
 from datasets.ascii_amstrad_cpc.ascii_amstrad_cpc import AsciiAmstradCPC
 from net.ascii_classifier_network import AsciiClassifierNetwork
 from performance_monitor import PerformanceMonitor
-from tensorboard_writer import TensorboardWriter
 import datasets.data_utils as data_utils
-
-models_path = os.path.normpath('./models/')
-num_labels = 511
+import pytorch.model_manager as models
 
 def do_main():
     # Eliminate randomness to increase training reproducibility
-    torch.manual_seed(777)
-    np.random.seed(777)
+    torch.manual_seed(123456)
+    np.random.seed(123456)
+    batch_size = 512
+    test_batch_size = 2048
 
     params = {
-        'batch_size':       1024,
-        'num_epochs':       50,
-        'learning_rate':    0.002,
-        'decay_rate':       0.96,
-        'decay_every_steps':2000,
-        'test_every_steps': 30
+        'batch_size':       batch_size,
+        'num_epochs':       20,
+        'learning_rate':    0.0001,
+        'decay_rate':       0.96, # todo: calculate from batch size and total number of samples
+        'decay_every_steps': 512,
+        'test_every_steps': 128
     }
 
-    transform = transforms.Compose(
-        [transforms.ToTensor()])
-    target_transform = transforms.Compose(
-        [data_utils.OneHot()])
+    random_state = 66
 
-    """ Load the train and test datasets """
-    dataset = AsciiAmstradCPC(
-        transform=transform,
-        target_transform=target_transform,
-        train=True,
-        device=get_device())
+    trainset = get_dataset(train=True)
+    testset = get_dataset(train=False)
 
-    trainset, testset = split_dataset(dataset)
+    #trainset, testset = split_dataset(trainset, 0.2, random_state=random_state)
 
     trainloader = torch.utils.data.DataLoader(
         trainset,
         batch_size=params['batch_size'],
         shuffle=True,
         num_workers=2,
-        prefetch_factor=4,
-        pin_memory=True)
+        prefetch_factor=8,
+        drop_last=True)
 
     testloader = torch.utils.data.DataLoader(
         testset,
-        batch_size=params['batch_size'],
+        batch_size=test_batch_size,
         shuffle=True,
         num_workers=2,
-        prefetch_factor=4,
-        pin_memory=True)
+        prefetch_factor=8,
+        drop_last=True,
+        worker_init_fn=data_utils.seed_init_fn)
 
-    train(dataset, trainloader, testloader, params)
+    train(trainset.get_class_counts(), trainloader, testloader, params)
 
-def split_dataset(dataset, test_split=0.25):
-    train_idx, test_idx = train_test_split(list(range(len(dataset))), test_size=test_split)
+def split_dataset(dataset, test_split=0.2, random_state=0):
+    train_idx, test_idx = train_test_split(list(range(len(dataset))), test_size=test_split, random_state=random_state)
     trainset = Subset(dataset, train_idx)
     testset = Subset(dataset, test_idx)
     return trainset, testset
@@ -92,63 +88,32 @@ def get_device():
 
     return device
 
-def eval_model():
-    model_name = 'AsciiAmstradCPC-Jan06_23-57-44.pth'
-    device = get_device()
-
-    transform = transforms.Compose(
-        [transforms.ToTensor()])
-    target_transform = transforms.Compose(
-        [data_utils.one_hot])
-
-    # Load the test dataset
-    dataset = AsciiAmstradCPC(transform=transform, target_transform=target_transform, train=False)
-    dataloader = torch.utils.data.DataLoader(
-        dataset,
-        batch_size=4096,
-        shuffle=True,
-        num_workers=4,
-        pin_memory=False)
-
-    model_file = os.path.join(models_path, 'AsciiAmstradCPC', model_name)
-    model = torch.load(model_file)
-    model.to(device)
-    model.eval()
-
-    metric = torchmetrics.Accuracy(num_classes=512)
-    metric.to(device)
-
-    with torch.no_grad():
-        input, labels = next(iter(dataloader))
-        start = time.time()
-
-        input, labels = input.to(device), labels.to(device)
-        total = input.size(0)
-        labels = torch.argmax(labels, dim=1)
-
-        print(f"Starting inference of {total} items...")
-        results = model(input)
-
-        accy = metric(results, labels)* 100
-
-        end = time.time()
-        duration = end - start
-        time_per_label = duration / metric.total
-        preds_per_second = float(1 / time_per_label)
-
-        print(f"Correct {metric.correct}/{metric.total}: {accy:.3f}% accuracy.")
-        print(f"Inferred {metric.total} in {duration:.2f} seconds ({preds_per_second:.2f}/s)")
-
-def train(trainset, trainloader, testloader, params):
+def train(class_counts, trainloader, testloader, params):
     global models_path
 
     device = get_device()
 
-    model = AsciiClassifierNetwork()
+    # Get class counts
+    class_cardinality = len(class_counts)
+    print(f"Found {class_cardinality} classes in dataset")
+
+    # AsciiClassifierNetwork.calculate_padding(8, 8, 3, 3, 2, 2)
+    model = AsciiClassifierNetwork(num_labels=class_cardinality)
     model.to(device)
 
-    criterion = nn.CrossEntropyLoss()
-    optimizer = optim.Adam(model.parameters(), lr=params['learning_rate'])
+    # Initialize parameter weights:
+    # https://stackoverflow.com/questions/49433936/how-to-initialize-weights-in-pytorch
+    model.apply(weights_init_uniform_rule)
+
+    # Generate class weights
+    class_weights = data_utils.create_class_weights(class_counts)
+    class_weights = torch.tensor(class_weights, dtype=torch.float)
+    class_weights.to(device)
+
+    # Loss function / optimizer / Learning rate scheduler
+    criterion = nn.CrossEntropyLoss(weight=class_weights).cuda()
+    optimizer = optim.Adam(model.parameters(), lr=params['learning_rate'], fused=True, amsgrad=True, eps=1e-9)
+    scheduler = optim.lr_scheduler.ExponentialLR(optimizer, params['decay_rate'])
 
     # Logging
     os.environ["WANDB_SILENT"] = "true"
@@ -158,12 +123,8 @@ def train(trainset, trainloader, testloader, params):
         entity='ghurtado',
         config=params)
 
-    # writer = TensorboardWriter("logs/", trainset)
-    # writer.add_hparams(params, {})
-    dataset_name = type(trainset).__name__
-    timestamp = datetime.now().strftime("%b%d_%H-%M-%S")
-
-    model_file = os.path.join(models_path, dataset_name, f"{dataset_name}-" + timestamp + '.pth')
+    dataset_name = 'AsciiAmstradCPC'
+    model_file = models.generate_model_filename(dataset_name)
     print(f"Saving model file to: {model_file}")
 
     # Add image embeddings
@@ -172,16 +133,17 @@ def train(trainset, trainloader, testloader, params):
 
     perf = PerformanceMonitor()
     test_perf = PerformanceMonitor()
-    log_every = 10 # Log every N steps
-    scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, params['decay_rate'])
-    testloader = iter(testloader)
+    log_every = 3 # Log every N steps
+
+
+    testloader_gen = iter(testloader)
 
     for epoch in range(params['num_epochs']):
+
         print()
         print(f"======== EPOCH {epoch} ========")
         print()
         steps_per_epoch = len(trainloader)
-        global_step = 0
 
         # Create a progress bar
         progress = tqdm(enumerate(trainloader, 0), total=steps_per_epoch, colour='green')
@@ -190,9 +152,6 @@ def train(trainset, trainloader, testloader, params):
             model.train()
             perf.reset()
             input, labels = input.to(device), labels.to(device)
-
-            # Show NN graph in Tensorboard
-            # writer.add_graph(model, inputs)
 
             output = model(input)
             loss = criterion(output, labels)
@@ -209,7 +168,8 @@ def train(trainset, trainloader, testloader, params):
 
             global_step = (epoch * steps_per_epoch) + step
 
-            if (global_step % params['decay_every_steps']) == 0:
+            # +1 below makes sure we don't decay on step 0
+            if ((global_step+1) % params['decay_every_steps']) == 0:
                 # decrease the learning rate
                 scheduler.step()
 
@@ -226,7 +186,14 @@ def train(trainset, trainloader, testloader, params):
                 # perform validation on test dataset
                 model.eval()
                 test_perf.reset()
-                [input, labels] = next(testloader)
+
+                try:
+                    input, labels = next(testloader_gen)
+                except StopIteration:
+                    # restart the generator if the previous generator is exhausted.
+                    testloader_gen = iter(testloader)
+                    input, labels = next(testloader_gen)
+
                 input, labels = input.to(device), labels.to(device)
 
                 output = model(input)
@@ -250,10 +217,59 @@ def train(trainset, trainloader, testloader, params):
 
             progress.set_description(desc)
 
+
         # At the end of every epoch, we save the model
         torch.save(model, model_file)
 
     print('Finished Training')
+
+def eval_model():
+    dataset_name = 'AsciiAmstradCPC'
+    model_name = 'AsciiAmstradCPC-Mar06_01-26-52.pt'
+    num_classes = 486
+    batch_size = 4096
+    device = get_device()
+
+    model = models.load_model(dataset_name, model_name )
+    model.to(device)
+    model.eval() # put the model in inference mode
+
+    # Load the test dataset
+    dataset = get_dataset(train=False)
+    dataloader = torch.utils.data.DataLoader(
+        dataset,
+        batch_size=batch_size,
+        shuffle=True,
+        num_workers=4,
+        pin_memory=False)
+
+    metric = torchmetrics.Accuracy(num_classes=num_classes, task='multiclass')
+    metric.to(device)
+    total_steps = len(dataloader)
+
+    with torch.no_grad():
+        start = time.time()
+        print(f"Starting inference of {total_steps} items...")
+
+        # Create a progress bar
+        progress = tqdm(enumerate(dataloader, 0), total=total_steps, colour='green')
+
+        for step, [input, target] in progress:
+            input, target = input.to(device), target.to(device)
+            outputs = model(input)
+            output_labels = torch.argmax(outputs, dim=-1)
+            metric.update(output_labels, torch.argmax(target, dim=1))
+
+        accuracy = metric.compute() * 100
+
+        end = time.time()
+        duration = end - start
+        time_per_label = duration / total_steps
+        preds_per_second = float(1 / time_per_label)
+
+        print(f"Correct xxx/{total_steps}: {accuracy:.3f}% accuracy.")
+        # print(f"Inferred {total_steps} in {duration:.2f} seconds ({preds_per_second:.2f}/s)")
+
 
 def wandb_log(params, step=None, epoch=None):
     if(step is not None):
@@ -262,6 +278,16 @@ def wandb_log(params, step=None, epoch=None):
         params['epoch'] = epoch
 
     wandb.log(params)
+
+def weights_init_uniform_rule(model):
+    classname = model.__class__.__name__
+    # for every Linear layer in a model..
+    if classname.find('Linear') != -1:
+        # get the number of the inputs
+        n = model.in_features
+        y = 1.0 / np.sqrt(n)
+        model.weight.data.uniform_(-y, y)
+        model.bias.data.fill_(0)
 
 def validate(model, testloader, criterion, labels):
     test_loss = 0
@@ -301,6 +327,88 @@ def calc_accuracy(model: torch.nn.Module, x: torch.Tensor, y: torch.Tensor) -> f
     acc = (max_idx_class == y).sum().item() / n
     return acc
 
+
+def get_dataset(train=True):
+    transform = transforms.Compose(
+        [transforms.ToTensor()])
+    target_transform = transforms.Compose(
+        [data_utils.OneHot()])
+
+    dataset = AsciiAmstradCPC(
+        transform=transform,
+        target_transform=target_transform,
+        train=train,
+        device=get_device())
+
+    return dataset
+
+def write_dataset_class_counts():
+    # Extract class counts for class weights
+
+    print("Evaluating class counts... This may take some time")
+    counts = data_utils.get_class_counts(get_dataset())
+    pd.DataFrame(counts).to_csv("lib/datasets/ascii_amstrad_cpc/data/amstrad-cpc_class_counts.csv", header=False)
+
+    counts = data_utils.get_class_counts(get_dataset(train=False))
+    pd.DataFrame(counts).to_csv("lib/datasets/ascii_amstrad_cpc/data/amstrad-cpc_class_counts-test.csv", header=False)
+
+def visualize_filters():
+    # instantiate model
+    conv = models.load_model('AsciiAmstradCPC', 'AmstradCPC-Mar03_22-25-56.pth')
+
+    # load weights if they haven't been loaded
+    # skip if you're directly importing a pretrained network
+    # checkpoint = torch.load('model_weights.pt')
+    # conv.load_state_dict(checkpoint)
+
+
+    # get the kernels from the first layer
+    # as per the name of the layer
+    kernels = conv.conv1.weight.detach().clone()
+    kernels.to("cpu")
+
+    visTensor(kernels, ch=0, allkernels=False)
+
+    plt.axis('off')
+    plt.ioff()
+    plt.show()
+
+    return
+
+    # normalize to (0,1) range so that matplotlib
+    # can plot them
+    min, _ = torch.min(kernels,1)
+    max, _ = torch.max(kernels,1)
+    kernels = kernels - min
+    kernels = kernels / max
+    filter_img = torchvision.utils.make_grid(kernels, nrow = 12)
+    # change ordering since matplotlib requires images to
+    # be (H, W, C)
+    img = filter_img.permute(1, 2, 0)
+    plt.imshow(img)
+
+    # You can directly save the image as well using
+    # img = save_image(kernels, 'encoder_conv1_filters.png' ,nrow = 12)
+
+def visTensor(tensor, ch=0, allkernels=False, nrow=8, padding=1):
+    n, c, h, w = tensor.shape
+    print(f"Filter tensor shape: n:{n}, c:{c}, h:{h}, w:{w}")
+    if allkernels:
+        tensor = tensor.view(n * c, -1, w, h)
+    elif c != 3:
+        tensor = tensor[:, ch, :, :].unsqueeze(dim=1)
+
+    rows = np.min((tensor.shape[0] // nrow + 1, 64))
+    grid = torchvision.utils.make_grid(tensor, nrow=nrow, normalize=True, padding=padding)
+    plt.figure(figsize=(nrow, rows))
+    mygrid = grid.to("cpu").numpy()
+    plt.imshow(mygrid.transpose((1, 2, 0)))
+
 if __name__ == "__main__":
-    do_main()
-    # eval_model()
+
+    #write_dataset_class_counts()
+    # do_main()
+    # visualize_filters()
+    eval_model()
+
+

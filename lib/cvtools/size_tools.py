@@ -1,0 +1,216 @@
+import numpy as np
+import cv2 as cv
+from numpy.lib.stride_tricks import as_strided as as_strided
+
+def resize_with_padding(img, size, padColor=0):
+
+    height, width = img.shape[:2]
+    frame_width, frame_height = size
+
+    # interpolation method
+    if height > frame_height or width > frame_width: # shrinking image
+        interp = cv.INTER_AREA
+    else: # stretching image
+        interp = cv.INTER_CUBIC
+
+    # aspect ratio of image
+    img_aspect = width/height
+    frame_aspect = frame_width/frame_height
+
+    # compute scaling and pad sizing
+    if img_aspect > frame_aspect:
+        ''' We'll need horizontal bars'''
+        new_width = frame_width
+        new_height = np.floor(frame_width/img_aspect).astype(int)
+
+        pad_horizontal = np.floor((frame_height - new_height) / 2).astype(int)
+        pad_vertical = 0
+
+        # Deal with images with "odd" heights (ie: star wars poster)
+        total_height = (pad_horizontal * 2) + new_height
+        if total_height < frame_height:
+            diff = int(frame_height - total_height)
+            pad_horizontal += diff
+            new_height -= diff
+
+    elif img_aspect < frame_aspect:
+        ''' We'll need vertical bars'''
+        new_height = frame_height
+        new_width = np.round(new_height * img_aspect).astype(int)
+        pad_vertical = np.round((frame_width - new_width) / 2).astype(int)
+        pad_horizontal = 0
+
+        total_width = (pad_vertical * 2) + new_width
+        if int(total_width) < int(frame_width):
+            diff = int(frame_width - total_width)
+            pad_vertical += diff
+            new_width -= diff
+
+    else: # square image
+        new_height, new_width = frame_height, frame_width
+        pad_horizontal, pad_vertical = 0, 0
+
+    # set padding color
+    if len(img.shape) == 3 and not isinstance(padColor, (list, tuple, np.ndarray)):
+        padColor = [padColor]*3
+
+    # scale and pad
+    scaled_img = cv.resize(img, (new_width, new_height), interpolation=interp)
+    scaled_img = cv.copyMakeBorder(scaled_img, pad_horizontal, pad_horizontal, pad_vertical, pad_vertical, borderType=cv.BORDER_CONSTANT, value=padColor)
+
+    return scaled_img
+
+
+def resize_grayscale(img, size):
+    """ Resize a grayscale image """
+    output = cv.resize(img, size, interpolation=cv.INTER_AREA)
+    return output
+
+def as_blocks(image, size=(8,8), flatten=False):
+    return sliding_window(image, size, flatten=flatten)
+
+""" Numpy manipulation functions"""
+
+def norm_shape(shape):
+    '''
+    Normalize numpy array shapes so they're always expressed as a tuple,
+    even for one-dimensional shapes.
+
+    Parameters
+        shape - an int, or a tuple of ints
+
+    Returns
+        a shape tuple
+    '''
+    try:
+        i = int(shape)
+        return (i,)
+    except TypeError:
+        # shape was not a number
+        pass
+
+    try:
+        t = tuple(shape)
+        return t
+    except TypeError:
+        # shape was not iterable
+        pass
+
+    raise TypeError('shape must be an int, or a tuple of ints')
+
+def sliding_window(input_array, window_size, slide_size=None, flatten=False):
+        '''
+        Return a sliding window over input_array in any number of dimensions
+
+        Parameters:
+            input_array  - an n-dimensional numpy array
+
+            window_size - an int (a is 1D) or tuple (a is 2D or greater) representing the size
+                 of each dimension of the window
+
+            slide_size - an int (a is 1D) or tuple (a is 2D or greater) representing the
+                 amount to slide the window in each dimension. If not specified, it
+                 defaults to ws.
+
+            flatten - if True, all slices are flattened, otherwise, there is an
+                      extra dimension for each dimension of the input.
+
+        Returns
+            an array containing each n-dimensional window from input_array
+
+        from http://www.johnvinyard.com/blog/?p=268
+        '''
+
+        if None is slide_size:
+            # ss was not provided. the windows will not overlap in any direction.
+            slide_size = window_size
+
+        window_size = norm_shape(window_size)
+        slide_size = norm_shape(slide_size)
+
+        # convert ws, ss, and a.shape to numpy arrays so that we can do math in every
+        # dimension at once.
+        window_size = np.array(window_size)
+        slide_size = np.array(slide_size)
+        shape = np.array(input_array.shape)
+
+        # ensure that ws, ss, and a.shape all have the same number of dimensions
+        ls = [len(shape), len(window_size), len(slide_size)]
+        if 1 != len(set(ls)):
+            raise ValueError( \
+                'a.shape, ws and ss must all have the same length. They were %s' % str(ls))
+
+        # ensure that ws is smaller than a in every dimension
+        if np.any(window_size > shape):
+            raise ValueError(
+                'ws cannot be larger than a in any dimension. a.shape was %s and ws was %s' % (
+                str(input_array.shape), str(window_size)))
+
+        # how many slices will there be in each dimension?
+        newshape = norm_shape(((shape - window_size) // slide_size) + 1)
+
+        # the shape of the strided array will be the number of slices in each dimension
+        # plus the shape of the window (tuple addition)
+        newshape += norm_shape(window_size)
+
+        # the strides tuple will be the array's strides multiplied by step size, plus
+        # the array's strides (tuple addition)
+        newstrides = norm_shape(np.array(input_array.strides) * slide_size) + input_array.strides
+        strided = as_strided(input_array, shape=newshape, strides=newstrides)
+
+        if not flatten:
+            return strided
+
+        # Collapse strided so that it has one more dimension than the window.  I.e.,
+        # the new array is a flat list of slices.
+        meat = len(window_size) if window_size.shape else 0
+        firstdim = (np.product(newshape[:-meat]),) if window_size.shape else ()
+        dim = firstdim + (newshape[-meat:])
+
+        # remove any dimensions with size 1
+        dim = list(filter(lambda i: i != 1, dim))
+
+        return strided.reshape(dim)
+
+
+
+def is_empty(img):
+    white_pixels = np.count_nonzero(img)
+
+    if white_pixels == 0:
+        return True
+    else:
+        return False
+
+
+def is_almost_empty(img, threshold):
+    """ Returns true as long as the image has no more than 'threshold' black pixels"""
+
+    white_pixels = np.count_nonzero(img)
+
+    if white_pixels <= threshold:
+        return True
+    else:
+        return False
+
+
+def is_full(img):
+    white_pixels = np.count_nonzero(img)
+    total_pixels = img.shape[0] * img.shape[1]
+
+    if white_pixels == total_pixels:
+        return True
+    else:
+        return False
+
+
+def is_almost_full(img, threshold):
+    """ Returns true as long as the image has no more than 'threshold' white pixels"""
+
+    white_pixels = np.count_nonzero(img)
+    total_pixels = img.shape[0] * img.shape[1]
+
+    if white_pixels >= (total_pixels - threshold):
+        return True
+    else:
+        return False
