@@ -28,6 +28,10 @@ class MultiDataset(Dataset):
 
         print("Dataset root is "+ self.data_root)
         files = os.listdir(self.data_root)
+
+        if len(files) == 0:
+            raise ZeroDivisionError(f"No data files found under {self.data_root}")
+
         print(f"Found {len(files)} data files." )
 
         self.all_files = []

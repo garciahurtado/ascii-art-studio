@@ -13,6 +13,7 @@ class ProcessingPipelineAscii(ProcessingPipeline):
         image = self._run_create_grayscale(image)
         image = self._run_create_high_contrast(image)
         image = self._run_denoise(image)
-        image = self._run_convert_to_ascii(image)
+        self.ascii = self._run_convert_to_ascii(image)
+        self._run_extract_colors_from_mask(self.contrast_img)
 
         return [self.ascii, self.contrast_img, self.color]

@@ -26,6 +26,9 @@ class PreloadedDataset(Dataset):
         print("Dataset root is "+ self.data_root)
         files = os.listdir(self.data_root)
         num = len(files)
+        if num == 0:
+            raise Exception(f"No data files found under {self.data_root}")
+
         print(f"Found {num} data files." )
         print("Preloading samples into GPU...")
 

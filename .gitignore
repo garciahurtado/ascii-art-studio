@@ -143,3 +143,5 @@ cython_debug/
 /wandb/
 /models/
 /lib/datasets/ascii_amstrad_cpc/data/
+/training/images/in/
+/training/images/out/

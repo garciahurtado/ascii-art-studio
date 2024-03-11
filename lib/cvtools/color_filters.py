@@ -39,12 +39,14 @@ def extract_colors_from_mask(color_img, mask, block_size, invert=False):
     return out_img
 
 
+
 def extract_colors_from_char_mask(img, characters, invert=False):
+    #@TODO   : deprecate
     # Valid scales: 1/4, 1/2 or 1/1
-    scale = 1
+    scale = 1/8
 
     width, height = img.shape[1], img.shape[0]
-    img = pixelize(img, scale=1 / 4)
+    # img = pixelize(img, scale=1 / 4)
 
     # reduce the sampling image resolution
     # img = cv.resize(img, (int(width * scale), int(height * scale)))

@@ -22,13 +22,13 @@ from cvtools import contrast_filters as filters, size_tools as tools, color_filt
 
 from ui.video_player import VideoPlayer
 
-print("Open CV Version: ")
+print("OpenCV Version: ")
 print(cv.__version__)
 
 screenshot_dir = 'resources/screenshots/'
 
 show_grid = False
-ascii_scale = 3
+ascii_scale = 2
 resize_threshold = 64
 
 RATIO_WIDE = 1
@@ -39,9 +39,6 @@ selected_block = None
 FRAME_FULL = 1
 FRAME_DIFF = 2
 FRAME_PALETTE = 3
-
-# Avoid TF memory issues
-os.environ['TF_FORCE_GPU_ALLOW_GROWTH'] = 'true'
 
 # Show controls
 def show_controls():
@@ -64,18 +61,15 @@ width, height = 640, 368  # For video
 char_width = 8
 char_height = 8
 charset = Charset(char_width, char_height)
-charset_name = 'amstrad-cpc.png'
-# charset_name = 'unscii-ext_8x16.png'
-# charset_name = 'chunky.png'
-charset.load(charset_name, invert=False)
-total_chars = len(charset.chars)
+charset_name = 'c64-ext.png'
+charset.load(charset_name, invert=True)
 charmap = []
 
 # Load a palette
 # palette = Palette(char_width=char_width, char_height=char_height)
 # palette.load('atari-st.png')
 
-converter = NeuralAsciiConverterPytorch(charset, 'Mar06_01-26-52.pt', [8,8])
+converter = NeuralAsciiConverterPytorch(charset, 'ascii_c64-Mar07_12-59-43.pt', 'ascii_c64', [8,8])
 # converter = NeuralAsciiConverter(charset, '20211221-012355-UnsciiExt8x16', [char_width,char_height])
 
 # converter = FeatureAsciiConverter(charset)
@@ -109,14 +103,12 @@ ui.char_picker_window = char_window
 
 # # VIDEO ----------
 video = VideoPlayer('resources/video/Star Wars - Opening Scene.mp4', resolution=(width, height), zoom=1)
-#(width, height) = video.resolution
+(width, height) = video.resolution
 video.play()
 
 show_layer = None
 
 is_full = True  # First frame is always a full frame
-
-# print("TF - Num GPUs Available: ", len(tf.config.list_physical_devices('GPU')))
 
 
 # Pipeline
@@ -134,7 +126,7 @@ last_palette = None
 binary_output_file = 'web/static/charpeg/video_stream.cpeg'
 
 @looper.fps(60)
-def run_block_contrast(ui, pipeline, img, char_window=None):
+def run_block_contrast(ui, pipeline, img, char_window=None, layer_window=None):
     global total_chars
     global ascii_scale
     global show_layer
@@ -147,17 +139,17 @@ def run_block_contrast(ui, pipeline, img, char_window=None):
     # _, original = video.read()
 
     ## VIDEO
-    #original = video.get_frame()
-    #
-    # # MoviePy uses RGB, so convert it to BGR
-    #original = cv.cvtColor(original, cv.COLOR_RGB2BGR)
+    original = video.get_frame()
+
+    # MoviePy uses RGB, so convert it to BGR
+    original = cv.cvtColor(original, cv.COLOR_RGB2BGR)
 
 
     # ## IMAGE
     #
-    img_path = img
-    ui.image_path = img_path
-    original = cv.imread(img_path)
+    # img_path = img
+    # ui.image_path = img_path
+    # original = cv.imread(img_path)
 
     ## PROCESSING ##
 
@@ -168,13 +160,13 @@ def run_block_contrast(ui, pipeline, img, char_window=None):
     chars = converter.match_char_map
     num_chars = converter.count_used_chars()
 
-    ui.ui_text['# chars: '] = f'{num_chars}/{total_chars}'
+    ui.ui_text['# chars: '] = f'{num_chars}/{num_chars}'
 
     if ui.show_layer is not None:
         final = pipeline.__getattribute__(ui.show_layer)
         final = cv.resize(final, (width * 2, height * 2), interpolation=cv.INTER_NEAREST)
         if(len(final.shape) == 2):
-            final = cv.cvtColor(final, cv.COLOR_GRAY2BGR)
+            final = cv.cvtColor(final, cv.COLOR_GRAY2RGB)
 
     # write out data file with ASCII version of image
 
@@ -188,7 +180,8 @@ def run_block_contrast(ui, pipeline, img, char_window=None):
 
     # char_window.show(pipeline.contrast_img)
     # char_window.show_char_matches(pipeline.contrast_img)
-    # show_layer_control(layer_window, ui)
+    if layer_window:
+        show_layer_control(layer_window, ui)
 
     return ui.get_key()
 
@@ -506,20 +499,20 @@ def mouse_click(event, x, y, flags, param):
 
 
 if __name__ == "__main__":
-    # show_controls()
-    # layer_window = create_layer_control()
-    # layer_window = None
+    #show_controls()
+    #layer_window = create_layer_control()
+    layer_window = None
     is_full = True
     last_char_map = None
 
     # cProfile.run('run_block_contrast(ui, char_window, layer_window)', sort='tottime')
     # run_all_frames_setup(ui)
 
-    pipeline = ProcessingPipeline()
+    pipeline = ProcessingPipelineAscii()
     pipeline.converter = converter
     pipeline.img_width = width
     pipeline.img_height = height
     pipeline.char_height = char_height
     pipeline.char_width = char_width
 
-    run_block_contrast(ui, pipeline, 'resources/images/star-wars-poster.png')
+    run_block_contrast(ui, pipeline, 'resources/images/star-wars-poster.png', layer_window=layer_window)

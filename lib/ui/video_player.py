@@ -30,7 +30,8 @@ class VideoPlayer():
         self.video = VideoFileClip(
             video_filename,
             target_resolution=(self.resolution[1], self.resolution[0]),
-            resize_algorithm='neighbor'
+            resize_algorithm='bicubic'
+
         )
         self.meta = self.video.reader.infos
         self.num_frames = self.meta['video_nframes']

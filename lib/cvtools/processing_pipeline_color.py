@@ -16,13 +16,16 @@ from . import color_filters
 from .processing_pipeline import ProcessingPipeline
 
 class ProcessingPipelineColor(ProcessingPipeline):
-    def run(self, contrast_image):
-        self.original = contrast_image
-        self.extractor = PaletteExtractor()
+    def run(self, input_image):
+        self.original = input_image
+        # self.extractor = PaletteExtractor()
         self.ascii_inv = cv.bitwise_not(self.ascii)
 
-        image = self._run_extract_colors_from_mask(contrast_image)
-        image = self._run_color_ascii(image)
+        image = self._run_brightness_saturation(input_image)
+        image = self._run_create_grayscale(image)
+        image = self._run_create_high_contrast(image)
+        image = self._run_convert_to_ascii()
+        image = self._run_extract_colors_from_mask(image)
         image = self._run_block_colors(image)
         image = self._run_final_blend(image)
 

@@ -67,15 +67,16 @@ class ProcessingPipeline():
         else:
             output_img = input_img
 
+        self.color = self.original
         return output_img
 
 
     def _run_brightness_saturation(self, input_img):
-        output_img = color_filters.brightness_saturation(input_img, 1.1, 1.4)
-        self.original = output_img
+        #output_img = color_filters.brightness_saturation(input_img, 1.1, 1.4)
         self.color = self.original
+        self.original = input_img
 
-        return output_img
+        return input_img
 
 
     def _run_create_grayscale(self, input_img):
@@ -103,7 +104,7 @@ class ProcessingPipeline():
         return input_img
 
 
-    def _run_convert_to_ascii(self, input_img):
+    def _run_convert_to_ascii(self, img):
         self.ascii = self.converter.convert_image(self.contrast_img)
         self.ascii_inv = cv.bitwise_not(self.ascii)
 

@@ -206,7 +206,6 @@ def is_full(img):
 
 def is_almost_full(img, threshold):
     """ Returns true as long as the image has no more than 'threshold' white pixels"""
-
     white_pixels = np.count_nonzero(img)
     total_pixels = img.shape[0] * img.shape[1]
 

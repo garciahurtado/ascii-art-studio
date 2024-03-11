@@ -28,18 +28,18 @@ def get_device():
 
 class NeuralAsciiConverterPytorch(AsciiConverter):
 
-    def __init__(self, charset: Charset, model, charsize):
-        super(NeuralAsciiConverterPytorch, self).__init__(charset)
+    def __init__(self, charset: Charset, model_filename, model_charset, charsize):
+        self.charset: Charset = charset
         self.char_width, self.char_height = charsize
 
         # Index characters by their position in which they were loaded into the charset
         self.charmap = {character.index: character for character in charset}
-        self.model = AsciiClassifierNetwork(num_labels=486)
-        self.load_model(model)
+        self.model = AsciiClassifierNetwork(num_labels=362)
+        self.load_model(model_charset, model_filename)
 
-    def load_model(self, name):
+    def load_model(self, charset_name, filename):
         # Load ML model
-        self.model = torch.load(MODELS_DIR + f"\\AsciiAmstradCPC\\" + f"AsciiAmstradCPC-{name}")
+        self.model = torch.load(os.path.join(MODELS_DIR, f"{charset_name}", f"{filename}"))
         self.model = self.model.cuda()
         return self.model
 
@@ -59,15 +59,14 @@ class NeuralAsciiConverterPytorch(AsciiConverter):
 
         # Slice up the B&W input image into blocks and match each of them to an ASCII characters
         blocks = self.convert_to_blocks(input_image)
-        blocks = torch.from_numpy(blocks)
-        blocks = blocks.permute(0, 3, 2, 1) # Reshape input tensor to match [batch, channels, width, height]
-        blocks = blocks.cuda()
-        predictions = self.predict_blocks(self.model, blocks)
+        blocks_gpu = torch.from_numpy(blocks)
+        blocks_gpu = blocks_gpu.permute(0, 3, 1, 2) # Reshape input tensor to match [batch, channels, width, height]
+        blocks_gpu = blocks_gpu.cuda()
+        predictions = self.predict_blocks(self.model, blocks_gpu)
 
-        blocks = blocks.cpu()
         # Retrieve the characters referenced by the labels returned by the model
         characters = self.predictions_to_characters(predictions)
-        #characters = self.set_full_empty_chars(characters, blocks)
+        characters = self.set_full_empty_chars(characters, blocks)
         self.used_chars = characters
 
         char_index = 0
@@ -121,6 +120,7 @@ class NeuralAsciiConverterPytorch(AsciiConverter):
         threshold = 2
 
         for char, block in zip(charlist, images):
+            # breakpoint()
             if (tools.is_almost_full(block, threshold)):
                 charlist_out.append(self.charset.full_char)
             elif (tools.is_almost_empty(block, threshold)):

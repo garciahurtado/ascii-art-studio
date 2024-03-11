@@ -77,22 +77,31 @@ class Charset:
                     self.chars.append(new_char)
 
         if invert:
-            # This branch is broken right now!
+            inverted_char = None
             inv_chars = []
+            idx = 0
 
             for character in self.chars:
-                inverted_char = Character(cv.bitwise_not(character.img), len(self.chars))
+                idx = len(self.chars) + len(inv_chars)
+                inverted_char = Character(cv.bitwise_not(character.img), idx)
                 inverted_char.is_inverted = True
 
                 # First character made of all black pixels, keep track of it
                 if inverted_char.is_full():
                     if self.full_char.index is None:
-                        self.full_char.index = len(self.chars)
+                        self.full_char.index = idx
+                        inv_chars.append(inverted_char)
+                elif inverted_char.is_empty():
+                    if self.empty_char.index is None:
+                        self.empty_char.index = idx
                         inv_chars.append(inverted_char)
                 else:
                     inv_chars.append(inverted_char)
 
             self.chars.extend(inv_chars)
+
+
+        print(f"{len(self.chars)} total characters loaded")
 
         return
 
@@ -117,23 +126,25 @@ class Charset:
 
         rows = []
 
-        # TODO: Needs to be updated
+        # TODO: Needs to be updated, only does single column right now
         for i in range(0, num_rows):
 
             # We may need to pad the last row if it's a jagged array
             if (i == num_rows - 1) and (num_pad_chars > 0):
                 print(f"Num pad chars: {num_pad_chars}")
-                empty_char = np.zeros((self.char_width, self.char_height), np.uint8)
-                padding = np.repeat(empty_char, num_pad_chars, axis=1)
-                padding = np.reshape(
-                    padding, (num_pad_chars, self.char_width, self.char_height)
-                )
-                chars.extend(padding.tolist())
+                empty_char = self.empty_char
+                padding = [empty_char for i in range(num_pad_chars)]
+                chars.extend(padding)
 
-            row = chars[i * num_cols : (i * num_cols) + num_cols]
-            rows.append(row)
+            all_row_chars = []
 
-        charmap = cv.vconcat(np.array(rows))
+            for j in range(0, num_cols):
+                idx = (i*num_cols) + j
+                all_row_chars.append(chars[idx].img)
+
+            rows.append(cv.vconcat(all_row_chars))
+
+        charmap = cv.vconcat(rows)
         cv.imwrite(self.CHARSETS_DIR + filename, charmap)
 
     def show_histogram(self):
