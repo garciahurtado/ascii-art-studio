@@ -47,7 +47,7 @@ def get_class_counts(dataset, num_classes):
     return counts
 
 
-def create_class_weights(labels, mu=0.01):
+def create_class_weights(labels, mu=0.0001):
     labels = {item[0]: item[1] for item in labels}
     total = np.sum(list(labels.values()))
     keys = labels.keys()

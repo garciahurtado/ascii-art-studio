@@ -36,7 +36,7 @@ def train_model(num_labels, dataset_type, dataset_name):
     np.random.seed(123456)
     random_state = 99
 
-    batch_size = 512
+    batch_size = 2048
 
     # Load datasets
     trainset = data_utils.get_dataset(train=True, dataset_type=dataset_type, num_labels=num_labels)
@@ -54,8 +54,8 @@ def train_model(num_labels, dataset_type, dataset_name):
         'num_epochs': 30,
         'num_train_samples': num_train_samples,
         'steps_per_epoch': steps_per_epoch,
-        'learning_rate': 0.0001,
-        'decay_rate': 0.96,
+        'learning_rate': 0.001,
+        'decay_rate': 0.98,
         'decay_every_steps': math.ceil(decay_every_samples / batch_size),
         'test_every_steps': 120,
         'log_every': 4,
