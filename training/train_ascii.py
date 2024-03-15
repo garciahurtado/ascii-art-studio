@@ -30,54 +30,52 @@ import datasets.data_utils as data_utils
 import pytorch.model_manager as models
 
 
-def train_model():
+def train_model(num_labels, dataset_type, dataset_name):
     # Eliminate randomness to increase training reproducibility
     torch.manual_seed(123456)
     np.random.seed(123456)
+    random_state = 99
 
     batch_size = 512
-    test_batch_size = 512
 
     # Load datasets
-    dataset_type = AsciiC64
-    trainset = data_utils.get_dataset(train=True, dataset_type=dataset_type)
+    trainset = data_utils.get_dataset(train=True, dataset_type=dataset_type, num_labels=num_labels)
+    #testset = data_utils.get_dataset(train=False, dataset_type=dataset_type, num_labels=num_labels)
 
+    trainset, testset = data_utils.split_dataset(trainset, 0.2, random_state=random_state, charset_name=dataset_name)
     class_counts = trainset.get_class_counts()
-    testset = data_utils.get_dataset(train=False, dataset_type=dataset_type)
-    num_train_samples = trainset.sample_count
-
-    # trainset, testset = split_dataset(trainset, 0.2, random_state=random_state)
+    num_train_samples = len(trainset)
 
     steps_per_epoch = num_train_samples / batch_size
-    decay_every_samples = 2000000
+    decay_every_samples = 256 * 1000
 
     params = {
         'batch_size': batch_size,
-        'num_epochs': 1,
+        'num_epochs': 30,
         'num_train_samples': num_train_samples,
         'steps_per_epoch': steps_per_epoch,
         'learning_rate': 0.0001,
         'decay_rate': 0.96,
         'decay_every_steps': math.ceil(decay_every_samples / batch_size),
-        'test_every_steps': 256,
+        'test_every_steps': 120,
         'log_every': 4,
     }
 
     trainloader = torch.utils.data.DataLoader(
         trainset,
-        batch_size=batch_size,
+        batch_size=batch_size * 2,
         shuffle=True,
         num_workers=2,
-        prefetch_factor=4,
+        prefetch_factor=3,
         drop_last=True,
         worker_init_fn=data_utils.seed_init_fn)
 
     testloader = torch.utils.data.DataLoader(
         testset,
-        batch_size=test_batch_size,
+        batch_size=batch_size * 2,
         shuffle=True,
-        num_workers=2,
-        prefetch_factor=4,
+        num_workers=3,
+        prefetch_factor=3,
         drop_last=True,
         worker_init_fn=data_utils.seed_init_fn)
 
@@ -102,13 +100,13 @@ def train(class_counts, trainloader, testloader, params):
     model.apply(weights_init_uniform_rule)
 
     # Generate class weights
-    class_weights = data_utils.create_class_weights(class_counts)
+    class_weights = data_utils.create_class_weights(class_counts, mu=0.0001)
     class_weights = torch.tensor(class_weights, dtype=torch.float)
     class_weights.to(device)
 
     # Loss function / optimizer / Learning rate scheduler
     criterion = nn.CrossEntropyLoss(weight=class_weights).cuda()
-    optimizer = optim.Adam(model.parameters(), lr=params['learning_rate'], fused=True, amsgrad=True, eps=1e-9)
+    optimizer = optim.Adam(model.parameters(), lr=params['learning_rate'])
     scheduler = optim.lr_scheduler.ExponentialLR(optimizer, params['decay_rate'])
 
     # Logging
@@ -281,11 +279,9 @@ def calc_accuracy(model: torch.nn.Module, x: torch.Tensor, y: torch.Tensor) -> f
 
 
 if __name__ == "__main__":
+    num_classes = 287
     dataset_type = AsciiC64
-    num_classes = 308
     dataset_name = 'ascii_c64'
-    model_filename = 'ascii_c64-Mar10_03-56-51'
 
-    # write_dataset_class_counts('lib/datasets/ascii_c64/data/c64_class_counts', num_classes, dataset_type)
-    # train_model()
-    # visualize_filters()
+    # data_utils.write_dataset_class_counts(f'lib/datasets/{dataset_name}/data/{dataset_name}_class_counts', num_classes, dataset_type)
+    train_model(num_classes, dataset_type, dataset_name)

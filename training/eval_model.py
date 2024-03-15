@@ -8,7 +8,7 @@ import torch.utils.data
 import torchmetrics
 import torchvision
 from matplotlib import pyplot as plt
-from sklearn.metrics import confusion_matrix
+from sklearn.metrics import confusion_matrix, classification_report
 from tqdm import tqdm
 import time
 
@@ -71,30 +71,36 @@ def eval_model(dataset_type, dataset_name, model_filename):
             metric_recall.update(output_labels, true_targets)
             metric_f1.update(output_labels, true_targets)
 
-        accuracy = metric.compute() * 100
+    # Calculate accuracy per class
+    report = classification_report(all_true_targets, all_output_labels, output_dict=True)
 
-        end = time.time()
-        duration = end - start
-        time_per_label = duration / total_samples
-        preds_per_second = float(1 / time_per_label)
+    data_root = dataset.data_root
+    data_root = os.path.dirname(data_root)
+    filename = os.path.join(data_root, f'{model_filename}-class-accuracy.txt')
+    print(f"Saving class accuracy to {filename}....")
 
-        print()
-        print("=== RESULTS ===")
-        print(f"Correct xxx/{total_samples}: {accuracy:.3f}% accuracy.")
-        print(f"Precision: {metric_precision.compute() * 100}")
-        print(f"Recall: {metric_recall.compute() * 100}")
-        print(f"F1 Score: {metric_f1.compute() * 100}")
-        print()
-        print(f"Inferred {total_samples} in {duration:.2f} seconds ({preds_per_second:.2f}/s)")
-        print()
-        cm = confusion_matrix(np.array(all_true_targets), np.array(all_output_labels))
-        print("Confusion Matrix:")
-        print(cm)
+    with open(filename, "w") as file:
+        for class_name, class_report in report.items():
+            if class_name != 'accuracy':
+                precision = f"{class_report['precision']*100:.2f}"
+                file.write(f"{class_name},{precision}\n")
+                print(f"Class {class_name}: Accuracy = {precision}")
 
-        # Save the matrix to disk
-        data_root = dataset.data_root
-        filename = os.path.join(data_root, f'{dataset_name}-confusion_matrix.txt')
-        np.savetxt(filename, cm, delimiter=',')
+    accuracy = metric.compute() * 100
+    end = time.time()
+    duration = end - start
+    time_per_label = duration / total_samples
+    preds_per_second = float(1 / time_per_label)
+
+    print()
+    print("=== RESULTS ===")
+    print(f"Correct xxx/{total_samples}: {accuracy:.3f}% accuracy.")
+    print(f"Precision: {metric_precision.compute() * 100}")
+    print(f"Recall: {metric_recall.compute() * 100}")
+    print(f"F1 Score: {metric_f1.compute() * 100}")
+    print()
+    print(f"Inferred {total_samples} in {duration:.2f} seconds ({preds_per_second:.2f}/s)")
+    print()
 
 def visualize_filters():
     # instantiate model

@@ -16,42 +16,52 @@ class MultiDataset(Dataset):
     index which can be used for quick file seek and retrieval. """
     """ @ref https://stackoverflow.com/questions/67941749/what-is-the-fastest-way-to-load-data-from-multiple-csv-files """
 
-    def __init__(self, train=True, batch_size=1, transform=None, target_transform=None, **kwargs):
+    def __init__(self, train=True, batch_size=1, transform=None, target_transform=None, discard_empty_full=True,
+                 **kwargs):
         super(MultiDataset, self).__init__()
         self.transform = transform
         self.target_transform = target_transform
 
         if train:
-            self.data_root = os.path.join(self.data_root , 'train')
+            self.data_root = os.path.join(self.data_root, 'train')
         else:
-            self.data_root = os.path.join(self.data_root , 'test')
+            self.data_root = os.path.join(self.data_root, 'test')
 
-        print("Dataset root is "+ self.data_root)
+        print("Dataset root is " + self.data_root)
         files = os.listdir(self.data_root)
 
         if len(files) == 0:
             raise ZeroDivisionError(f"No data files found under {self.data_root}")
 
-        print(f"Found {len(files)} data files." )
+        print(f"Found {len(files)} data files.")
 
         self.all_files = []
         self.batch_size = batch_size
         self.sample_count = 0
-        self.file_indices = [] # each element is a tuple: [filename, offset]
+        self.file_indices = []  # each element is a tuple: [filename, offset]
 
         print("Building file indexes...")
         total_count = 0
+        zero_count = 0
+
         for filename in files:
-            full_path = os.path.join(self.data_root , filename)
+            self.found_first_nonzero = False
+            full_path = os.path.join(self.data_root, filename)
 
             with open(full_path, "r", encoding='ascii') as current_file:
                 offset = 0
                 sample_count = 0
                 for line in current_file:
-                    self.file_indices.append([filename, offset])
+                    if discard_empty_full and (not self.found_first_nonzero) and (not self.is_nonzero_sample(line)):
+                        zero_count = zero_count + 1
+
+                    if (not discard_empty_full or self.found_first_nonzero) or self.is_nonzero_sample(line):
+                        self.found_first_nonzero = True
+                        sample_count += 1
+                        self.file_indices.append([filename, offset])
+
                     length = len(line.encode('ascii'))
-                    offset += length + 1 # SUPERHACK: adding 1 byte to the offset due to Windows CR-LF
-                    sample_count += 1
+                    offset += length + 1  # SUPERHACK: adding 1 byte to the offset due to Windows CR-LF
 
                 self.all_files.append([full_path, sample_count])
 
@@ -59,8 +69,18 @@ class MultiDataset(Dataset):
 
         self.sample_count = total_count
 
-        print(f"{self.sample_count} total training samples loaded")
+        print(f"{self.sample_count} total training samples found. Ignoring {zero_count} all 0s/ all 1s samples")
 
+    def is_nonzero_sample(self, line):
+        """ We want to discard all empty samples at the beginning of a file, but only those. So we keep track of the
+        first time we find a line of non-zeros, and after that we will accept anything"""
+        all_ints = np.array([int(v) for v in line.split("\t")])
+
+        # Count all columns in the row except the first (the label). Either all zeros or all ones will be discarded
+        if (np.sum(all_ints[1:]) == 0) or (np.sum(all_ints[1:]) == len(all_ints[1:])):
+            return False
+        else:
+            return True
 
     def __len__(self):
         return self.sample_count
@@ -74,7 +94,7 @@ class MultiDataset(Dataset):
             csv_file.seek(0)
             csv_file.seek(offset)
             line = csv_file.readline()
-            all_cols = np.array([float(v) for v in line.split("\t")])
+            all_cols = np.array([int(v) for v in line.split("\t")])
             csv_file.seek(0)
 
         # Extract labels (first column)
@@ -88,7 +108,7 @@ class MultiDataset(Dataset):
         image_data = all_cols[1:]
         image_data = image_data.astype('float')
 
-        image_data = np.asarray(image_data).reshape(8,8,-1)  # Because of Pytorch's channel first convention
+        image_data = np.asarray(image_data).reshape(8, 8, -1)  # Because of Pytorch's channel first convention
 
         if self.transform:
             image_data = self.transform(image_data)
@@ -101,14 +121,6 @@ class MultiDataset(Dataset):
         sample = [image_data, label_data]
 
         return sample
-
-    @lru_cache()
-    def get_sample_count_by_file(self, path) -> int:
-        count = 0
-        with open(path, "r") as f:
-            for line in f:
-                count += 1
-        return count
 
     @lru_cache()
     def get_file_for_index(self, index):

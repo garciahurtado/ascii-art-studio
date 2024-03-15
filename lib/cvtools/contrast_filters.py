@@ -10,7 +10,7 @@ Series of utility functions which perform various filters on images themed aroun
 """
 
 
-def block_contrast(input_image, block_size, rand_inv=False):
+def block_contrast(input_image, block_size, invert=False):
     """WARNING: This function modifies the input image (for efficiency), so make sure you make a copy of it if you don't want that"""
     # rand_inv = Whether to randomly invert half of the blocks processed,
     # in order to provide a more balanced output for ML training
@@ -32,9 +32,8 @@ def block_contrast(input_image, block_size, rand_inv=False):
         y = row_num * block_height
 
         contrast_block = image_contrast(block)
-        if(rand_inv):
-            if random.randint(0,1): # 50% chance
-                contrast_block = np.invert(contrast_block)
+        if(invert):
+            contrast_block = np.invert(contrast_block)
 
         input_image[y:y+block_height, x:x+block_width] = contrast_block
 

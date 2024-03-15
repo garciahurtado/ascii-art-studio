@@ -29,10 +29,10 @@ all_used_chars = [] # For stats
 charset_name = 'c64.png'
 char_width, char_height = 8, 8
 charset = Charset(char_width, char_height)
-charset.load(charset_name, invert=True)
+charset.load(charset_name)
 
 
-def create_single_image(filename, charset, index, csv=True, labels=False):
+def create_single_image(filename, charset, index, csv=True, labels=False, skip_blank_rows=True, generate_inverted=True):
 
     if os.path.isfile(filename):
         print(f'Processing {filename}...')
@@ -49,18 +49,21 @@ def create_single_image(filename, charset, index, csv=True, labels=False):
         pipeline.converter = converter
         pipeline.img_width = WIDTH
         pipeline.img_height = HEIGHT
-        final = pipeline.run(in_img) # We dont need the final image, only the high contrast one
+
+        # pipeline.contrast_img = cv.bitwise_not(pipeline.contrast_img)
 
         # Half of the images will be randomly inverted. This will ensure that the characters in the inverted
         # half of the charset are also represented.
-        if(random.choice([True, False])):
-            pipeline.contrast_img = cv.bitwise_not(pipeline.contrast_img)
+        if generate_inverted and random.choice([True, False]):
+            pipeline.run(in_img)
+        else:
+            pipeline.run(in_img, invert=True)
 
         # Save the high contrast image
         cv.imwrite(out_file_contrast, pipeline.contrast_img)
         print(f'{out_file_contrast} created')
 
-        # Save the ASCII converted image
+        # Save the ASCII converted image, as text
         cv.imwrite(out_file_ascii, pipeline.ascii)
         print(f'{out_file_ascii} created')
 
@@ -107,7 +110,7 @@ def create_training_images(csv=True, start_index=0):
             params = [full_path, charset, start_index + index, csv]
             all_params.append(params)
 
-        res = p.starmap(create_single_image, all_params)
+        p.starmap(create_single_image, all_params)
 
     end_time = arrow.utcnow()
     time_diff = end_time - start_time
@@ -238,7 +241,7 @@ def make_histogram():
 def eval_determinism():
     """The algorithm which creates the ASCII labels used in training must produce consistent results in order
     for the training set to be 100% accuracy trainable. This function tests the algorithm for consistent results in
-    labelling."""
+    labeling."""
 
     files = os.listdir(IN_DIR)
     start_index = 0
@@ -279,8 +282,6 @@ def eval_determinism():
     print("Uncertain labels: " + uncertain_labels)
 
 if __name__ == "__main__":
-    # create_sprite()
-    # make_histogram()
     create_training_images()
-    # eval_determinism()
+    make_histogram()
 

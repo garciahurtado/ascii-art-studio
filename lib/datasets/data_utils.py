@@ -1,4 +1,5 @@
 import math
+import os
 import random
 
 import numpy as np
@@ -6,10 +7,12 @@ import pandas as pd
 import torch
 from sklearn.model_selection import train_test_split
 import torchvision.transforms as transforms
-from torch.utils.data import Subset
+from datasets.ascii_subset import AsciiSubset
+
 
 class OneHot:
     def __init__(self, num_labels):
+        super().__init__()
         self.num_labels = num_labels
 
     def __call__(self, labels):
@@ -44,7 +47,7 @@ def get_class_counts(dataset, num_classes):
     return counts
 
 
-def create_class_weights(labels, mu=0.15):
+def create_class_weights(labels, mu=0.01):
     labels = {item[0]: item[1] for item in labels}
     total = np.sum(list(labels.values()))
     keys = labels.keys()
@@ -61,10 +64,43 @@ def create_class_weights(labels, mu=0.15):
     return list(class_weight.values())
 
 
-def split_dataset(dataset, test_split=0.2, random_state=0):
+def calculate_class_weights(class_counts):
+    # Calculate class frequencies
+    class_counts = torch.tensor(class_counts)
+    # total_count = class_counts.sum()
+    # class_freqs = class_counts / total_count
+    #
+    # # Calculate class imbalance ratio
+    # rarest_class_freq = class_freqs.min() + 0.0001
+    # most_common_class_freq = class_freqs.max()
+    # class_imbalance_ratio = rarest_class_freq / most_common_class_freq
+
+    # Calculate effective number of samples
+    # effective_num_samples = (1 - class_imbalance_ratio) / class_imbalance_ratio
+
+    # Calculate alpha
+    alpha = 0.99
+    # effective_num = (1 - np.power(alpha, class_counts)) / (1 - alpha)
+    effective_num = (1 - torch.pow(alpha, class_counts)) / (1 - alpha)
+
+    # Calculate mu
+    #mu = 1 / effective_num
+   # mu_normalized = mu / np.sum(mu)  # This is optional, based on your needs
+
+    #print(f"Class weights: Ideal value of mu: {mu.item():.2f}")
+
+    class_weights = 1 / effective_num
+    class_weights = class_weights / torch.sum(class_weights) * len(class_counts)  # Normalize weights
+
+    # Apply class weighting
+   # class_weights = 1 / torch.tensor([effective_num]) ** mu
+    return class_weights
+
+
+def split_dataset(dataset, test_split=0.2, random_state=0, charset_name=None):
     train_idx, test_idx = train_test_split(list(range(len(dataset))), test_size=test_split, random_state=random_state)
-    trainset = Subset(dataset, train_idx)
-    testset = Subset(dataset, test_idx)
+    trainset = AsciiSubset(dataset, train_idx, charset_name, dataset.data_root)
+    testset = AsciiSubset(dataset, test_idx, charset_name, dataset.data_root)
     return trainset, testset
 
 
@@ -112,6 +148,20 @@ def get_device():
 
     return device
 
+def concat_files(path, ext):
+    all_text = ""
+
+    for filename in os.listdir(path):
+        # Check if the file is a .txt file
+        if filename.endswith(ext):
+            # Open the file in read mode
+            with open(os.path.join(path, filename), 'r') as file:
+                file_contents = file.read()
+                all_text += file_contents + '\n'
+
+    # Write the concatenated text to a summary file
+    with open(os.path.join(path, 'all-files.txt'), 'w') as summary_file:
+        summary_file.write(all_text)
 
 def calculate_padding(self, in_height, in_width, filter_height, filter_width, stride_1, stride2):
     out_height = np.ceil(float(in_height) / float(stride_1))

@@ -32,9 +32,10 @@ class ProcessingPipeline():
     palette = None
     extractor = None
 
-    def run(self, input_img):
+    def run(self, input_img, invert=False):
         self.original = input_img
         self.extractor = PaletteExtractor()
+        self.invert = invert
 
         steps = []
 
@@ -88,7 +89,7 @@ class ProcessingPipeline():
 
 
     def _run_create_high_contrast(self, input_img):
-        self.contrast_img = filters.block_contrast(self.grayscale, (self.char_height, self.char_width), rand_inv=False)
+        self.contrast_img = filters.block_contrast(self.grayscale, (self.char_height, self.char_width), invert=self.invert)
 
         return input_img
 
