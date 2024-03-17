@@ -12,15 +12,15 @@ class PerformanceMonitor:
         self.loss_window = 100 # Avg Loss is calculated based on the last N samples
 
     def reset(self):
+        self.loss = []
         self.total_predictions = 0
         self.correct_predictions = 0
 
-    def add_predictions(self, results, labels):
-        self.total_predictions += labels.size(0)
-        _, predicted = torch.max(results.data, 1)
-        predicted = torch.reshape(predicted, [labels.size(0),1])
+    def add_predictions(self, predictions, truth):
+        self.total_predictions += truth.size(0)
+        predictions = torch.argmax(predictions.data, -1)
 
-        correct = (predicted == labels).sum().item()
+        correct = (predictions == truth).sum().item()
         self.correct_predictions += correct
 
     def get_accuracy(self):

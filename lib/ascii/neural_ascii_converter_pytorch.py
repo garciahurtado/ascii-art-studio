@@ -10,6 +10,7 @@ from cvtools import size_tools as tools
 from ascii.block import Block
 import torch
 from net.ascii_classifier_network import AsciiClassifierNetwork
+from pytorch import model_manager
 
 this_dir = os.path.dirname(os.path.realpath(__file__))
 MODELS_DIR = os.path.join(this_dir, "..\..\\", "models\\")
@@ -28,19 +29,19 @@ def get_device():
 
 class NeuralAsciiConverterPytorch(AsciiConverter):
 
-    def __init__(self, charset: Charset, model_filename, model_charset, charsize):
+    def __init__(self, charset: Charset, model_filename, model_charset, charsize, num_labels=None):
         self.charset: Charset = charset
         self.char_width, self.char_height = charsize
 
         # Index characters by their position in which they were loaded into the charset
         self.charmap = {character.index: character for character in charset}
-        self.model = AsciiClassifierNetwork(num_labels=362)
-        self.load_model(model_charset, model_filename)
+        self.load_model(model_charset, model_filename, num_labels)
 
-    def load_model(self, charset_name, filename):
-        # Load ML model
-        self.model = torch.load(os.path.join(MODELS_DIR, f"{charset_name}", f"{filename}"))
+    def load_model(self, charset_name, filename, num_labels):
+        # Load ML model source class and weights
+        self.model = model_manager.load_model(charset_name, filename, num_labels)
         self.model = self.model.cuda()
+
         return self.model
 
     def convert_image(self, input_image):

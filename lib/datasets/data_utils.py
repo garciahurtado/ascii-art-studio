@@ -17,7 +17,7 @@ class OneHot:
 
     def __call__(self, labels):
         """ Encode the labels with one-hot encoding """
-        return torch.nn.functional.one_hot(labels.to(torch.int64), num_classes=self.num_labels)
+        return torch.nn.functional.one_hot(labels.to(torch.float32), num_classes=self.num_labels)
 
     def __repr__(self):
         return self.__class__.__name__ + '()'
@@ -28,7 +28,7 @@ def get_class_counts(dataset, num_classes):
     datasets by providing weights to the trainer"""
     dataloader = torch.utils.data.DataLoader(
         dataset,
-        batch_size=num_classes,
+        batch_size=1024,
         shuffle=True,
         num_workers=4,
         pin_memory=True)
@@ -36,8 +36,7 @@ def get_class_counts(dataset, num_classes):
     counts = None
 
     for [_, labels] in dataloader:
-        labels = torch.argmax(labels, dim=1, keepdim=True)
-        curr_counts = np.bincount(labels.flatten(), minlength=num_classes)
+        curr_counts = np.bincount(labels, minlength=num_classes)
 
         if counts is not None:
             counts = np.add(counts, curr_counts)
@@ -47,11 +46,11 @@ def get_class_counts(dataset, num_classes):
     return counts
 
 
-def create_class_weights(labels, mu=0.0001):
+def create_class_weights(labels, mu=0.001):
     labels = {item[0]: item[1] for item in labels}
     total = np.sum(list(labels.values()))
     keys = labels.keys()
-    class_weight = dict()
+    class_weights = dict()
 
     for key in keys:
         if (labels[key] > 0):
@@ -59,9 +58,13 @@ def create_class_weights(labels, mu=0.0001):
         else:
             score = 0
 
-        class_weight[key] = score if score > 1.0 else 1.0
+        class_weights[key] = score if score > 0 else 0
 
-    return list(class_weight.values())
+    # normalize the weights
+    # weight_sum = sum(class_weights)
+    # class_weights = [w / weight_sum for w in class_weights]
+
+    return list(class_weights)
 
 
 def calculate_class_weights(class_counts):
@@ -105,14 +108,15 @@ def split_dataset(dataset, test_split=0.2, random_state=0, charset_name=None):
 
 
 def get_dataset(train=True, dataset_type=None, num_labels=None):
-    transform = transforms.Compose(
-        [transforms.ToTensor()])
-    target_transform = transforms.Compose(
-        [OneHot(num_labels)])
+    # Skip the OneHot transform as long as we are using CrossEntropyLoss
+    # transform = transforms.Compose(
+    #     [transforms.ToTensor()])
+
+    # target_transform = transforms.Compose(
+    #     [OneHot(num_labels)])
+
 
     dataset = dataset_type(
-        transform=transform,
-        target_transform=target_transform,
         train=train,
         device=get_device())
 
@@ -141,7 +145,7 @@ def seed_init_fn(x):
 def get_device():
     if torch.cuda.is_available():
         device = torch.device('cuda')
-        print("Using CUDA driver")
+        # print("Using CUDA driver")
     else:
         device = torch.device('cpu')
         print("No CUDA driver available. Using CPU fallback")

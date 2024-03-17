@@ -52,8 +52,8 @@ def show_controls():
 dilate_kernel = np.array(([0,1,0],[1,2,1],[0,1,0]), np.uint8)
 
 
-# width, height = 496, 368 # For images
-# width, height = 992, 736 # For images
+#width, height = 496, 368 # For images
+#width, height = 992, 736 # For images
 width, height = 640, 368  # For video
 # width, height = 640, 272 # Luke Darth video
 
@@ -61,20 +61,19 @@ width, height = 640, 368  # For video
 char_width = 8
 char_height = 8
 charset = Charset(char_width, char_height)
-charset_name = 'c64-ext.png'
-charset.load(charset_name, invert=True)
+charset_name = 'c64.png'
+charset.load(charset_name, invert=False)
 charmap = []
+num_chars = 254
 
 # Load a palette
 # palette = Palette(char_width=char_width, char_height=char_height)
 # palette.load('atari-st.png')
 
-converter = NeuralAsciiConverterPytorch(charset, 'ascii_c64-Mar07_12-59-43.pt', 'ascii_c64', [8,8])
+converter = NeuralAsciiConverterPytorch(charset, 'ascii_c64-Mar17_03-27-13', 'ascii_c64', [8,8], num_labels=num_chars)
 # converter = NeuralAsciiConverter(charset, '20211221-012355-UnsciiExt8x16', [char_width,char_height])
 
 # converter = FeatureAsciiConverter(charset)
-converter.char_width = char_width
-converter.char_height = char_height
 # converter.set_region((0, 5),(12, 25)) # Death star
 # converter.set_region((35, 11),(60, 26)) # Star Wars
 
@@ -83,6 +82,7 @@ converter.char_height = char_height
 ui = BlockGridWindow('output')
 ui.converter = converter
 ui.show_fps = False
+ui.show_layer = None
 cv.moveWindow('output', 550, 20)
 
 # char_window = CharPickerWindow('characters')
@@ -106,8 +106,6 @@ video = VideoPlayer('resources/video/Star Wars - Opening Scene.mp4', resolution=
 (width, height) = video.resolution
 video.play()
 
-show_layer = None
-
 is_full = True  # First frame is always a full frame
 
 
@@ -125,18 +123,17 @@ last_frame_time = 0
 last_palette = None
 binary_output_file = 'web/static/charpeg/video_stream.cpeg'
 
-@looper.fps(60)
-def run_block_contrast(ui, pipeline, img, char_window=None, layer_window=None):
+@looper.fps(30)
+def run_block_contrast(ui, pipeline, img_path, layer_window=None):
     global total_chars
     global ascii_scale
-    global show_layer
     global show_grid
     global width, height
     global now
 
     ## WEBCAM
     #
-    # _, original = video.read()
+    #_, original = video.read()
 
     ## VIDEO
     original = video.get_frame()
@@ -149,24 +146,26 @@ def run_block_contrast(ui, pipeline, img, char_window=None, layer_window=None):
     #
     # img_path = img
     # ui.image_path = img_path
-    # original = cv.imread(img_path)
+    #original = cv.imread(img_path)
 
     ## PROCESSING ##
 
+    # final1, final2, final3 = pipeline.run(original)
+    # final = final3
     final = pipeline.run(original)
 
-    # _, final = colors.palettize(final, palette)
+    #_, final = colors.palettize(final, palette)
 
     chars = converter.match_char_map
     num_chars = converter.count_used_chars()
 
     ui.ui_text['# chars: '] = f'{num_chars}/{num_chars}'
 
-    if ui.show_layer is not None:
-        final = pipeline.__getattribute__(ui.show_layer)
-        final = cv.resize(final, (width * 2, height * 2), interpolation=cv.INTER_NEAREST)
-        if(len(final.shape) == 2):
-            final = cv.cvtColor(final, cv.COLOR_GRAY2RGB)
+    # if ui.show_layer is not None:
+    #     final = pipeline.__getattribute__(ui.show_layer)
+    #     final = cv.resize(final, (width * 2, height * 2), interpolation=cv.INTER_NEAREST)
+    #     if(len(final.shape) == 2):
+    #         final = cv.cvtColor(final, cv.COLOR_GRAY2RGB)
 
     # write out data file with ASCII version of image
 
@@ -175,7 +174,6 @@ def run_block_contrast(ui, pipeline, img, char_window=None, layer_window=None):
     # if selected_block and char_window:
     #     ui.select_block(selected_block)
     #     char_window.select_block(selected_block)
-
     ui.show(final)
 
     # char_window.show(pipeline.contrast_img)
@@ -508,11 +506,11 @@ if __name__ == "__main__":
     # cProfile.run('run_block_contrast(ui, char_window, layer_window)', sort='tottime')
     # run_all_frames_setup(ui)
 
-    pipeline = ProcessingPipelineAscii()
+    pipeline = ProcessingPipeline()
     pipeline.converter = converter
     pipeline.img_width = width
     pipeline.img_height = height
     pipeline.char_height = char_height
     pipeline.char_width = char_width
 
-    run_block_contrast(ui, pipeline, 'resources/images/star-wars-poster.png', layer_window=layer_window)
+    run_block_contrast(ui, pipeline, 'resources/images/tank-girl.png', layer_window=layer_window)

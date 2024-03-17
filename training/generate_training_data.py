@@ -32,61 +32,74 @@ charset = Charset(char_width, char_height)
 charset.load(charset_name)
 
 
-def create_single_image(filename, charset, index, csv=True, labels=False, skip_blank_rows=True, generate_inverted=True):
+def create_single_image(filename, index, csv=True, labels=False, skip_blank_rows=True, random_inverted=False, double_inverted=True):
 
     if os.path.isfile(filename):
         print(f'Processing {filename}...')
 
         in_img = cv.imread(filename)
 
-        out_file_contrast = OUT_DIR + f'{index:06d}-contrast.png'
-        out_file_ascii = OUT_DIR + f'{index:06d}-ascii.png'
+        out_filename = f"{index:06d}"
+        convert_image(in_img, labels, out_filename, random_inverted=random_inverted)
 
-        converter = FeatureAsciiConverter(charset)
-        converter.char_width = char_width
-        converter.char_height = char_height
-        pipeline = ProcessingPipeline()
-        pipeline.converter = converter
-        pipeline.img_width = WIDTH
-        pipeline.img_height = HEIGHT
+        out_filename = f"{index:06d}-inv"
+        convert_image(in_img, labels, out_filename, random_inverted=random_inverted, is_inverted=True)
 
-        # pipeline.contrast_img = cv.bitwise_not(pipeline.contrast_img)
 
-        # Half of the images will be randomly inverted. This will ensure that the characters in the inverted
-        # half of the charset are also represented.
-        if generate_inverted and random.choice([True, False]):
-            pipeline.run(in_img)
-        else:
-            pipeline.run(in_img, invert=True)
+def convert_image(in_img, labels, filename, random_inverted=False, is_inverted=False):
+    out_file_contrast = OUT_DIR + f'{filename}-contrast.png'
+    out_file_ascii = OUT_DIR + f'{filename}-ascii.png'
 
-        # Save the high contrast image
-        cv.imwrite(out_file_contrast, pipeline.contrast_img)
-        print(f'{out_file_contrast} created')
+    converter = FeatureAsciiConverter(charset)
+    converter.char_width = char_width
+    converter.char_height = char_height
+    pipeline = ProcessingPipeline()
+    pipeline.converter = converter
+    pipeline.img_width = WIDTH
+    pipeline.img_height = HEIGHT
 
-        # Save the ASCII converted image, as text
-        cv.imwrite(out_file_ascii, pipeline.ascii)
-        print(f'{out_file_ascii} created')
+    # pipeline.contrast_img = cv.bitwise_not(pipeline.contrast_img)
 
-        # Collect stats for histogram of per character uses
-        all_used_chars.extend(converter.used_chars)
+    # Half of the images will be randomly inverted. This will ensure that the characters in the inverted
+    # half of the charset are also represented.
+    # if random_inverted and random.choice([True, False]):
+    #     pipeline.run(in_img)
+    # else:
+    #     pipeline.run(in_img, invert=True)
 
-        if csv:
-            csv_data = converter.get_csv_data()
-            out_file_data = OUT_DIR + f'{index:06d}-ascii-data.txt'
-            data_file = open(out_file_data, "w")
-            data_file.write(csv_data)
-            data_file.close()
-            print(f'{out_file_data} created')
+    if not is_inverted:
+        pipeline.run(in_img)
+    else:
+        pipeline.run(in_img, invert=True)
 
-            out_file_table = OUT_DIR + f'{index:06d}-ascii-table.png'
-            index_table = make_charset_index_table(charset)
-            cv.imwrite(out_file_table, index_table)
-            print(f'{out_file_table} created')
+    # Save the high contrast image
+    cv.imwrite(out_file_contrast, pipeline.contrast_img)
+    print(f'{out_file_contrast} created')
 
-            return csv_data
+    # Save the ASCII converted image, as text
+    cv.imwrite(out_file_ascii, pipeline.ascii)
+    print(f'{out_file_ascii} created')
 
-        if labels:
-            return converter.get_label_data()
+    # Collect stats for histogram of per character uses
+    all_used_chars.extend(converter.used_chars)
+
+    if csv:
+        csv_data = converter.get_csv_data()
+        out_file_data = OUT_DIR + f'{filename}-ascii-data.txt'
+        data_file = open(out_file_data, "w")
+        data_file.write(csv_data)
+        data_file.close()
+        print(f'{out_file_data} created')
+
+        out_file_table = OUT_DIR + f'{filename}-ascii-table.png'
+        index_table = make_charset_index_table(charset)
+        cv.imwrite(out_file_table, index_table)
+        print(f'{out_file_table} created')
+
+        return csv_data
+
+    if labels:
+        return converter.get_label_data()
 
 def create_training_images(csv=True, start_index=0):
     """
@@ -107,7 +120,7 @@ def create_training_images(csv=True, start_index=0):
             if os.path.isdir(full_path):
                 continue # Skip directories
 
-            params = [full_path, charset, start_index + index, csv]
+            params = [full_path, start_index + index, csv]
             all_params.append(params)
 
         p.starmap(create_single_image, all_params)
@@ -283,5 +296,5 @@ def eval_determinism():
 
 if __name__ == "__main__":
     create_training_images()
-    make_histogram()
+    # make_histogram()
 

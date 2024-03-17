@@ -37,25 +37,26 @@ def train_model(num_labels, dataset_type, dataset_name):
     random_state = 99
 
     batch_size = 2048
+    test_batch_size = batch_size * 10
 
     # Load datasets
     trainset = data_utils.get_dataset(train=True, dataset_type=dataset_type, num_labels=num_labels)
-    #testset = data_utils.get_dataset(train=False, dataset_type=dataset_type, num_labels=num_labels)
+    testset = data_utils.get_dataset(train=False, dataset_type=dataset_type, num_labels=num_labels)
 
-    trainset, testset = data_utils.split_dataset(trainset, 0.2, random_state=random_state, charset_name=dataset_name)
+    # trainset, testset = data_utils.split_dataset(trainset, 0.2, random_state=random_state, charset_name=dataset_name)
     class_counts = trainset.get_class_counts()
     num_train_samples = len(trainset)
 
     steps_per_epoch = num_train_samples / batch_size
-    decay_every_samples = 256 * 1000
+    decay_every_samples = 512 * 1000
 
     params = {
         'batch_size': batch_size,
         'num_epochs': 30,
         'num_train_samples': num_train_samples,
         'steps_per_epoch': steps_per_epoch,
-        'learning_rate': 0.001,
-        'decay_rate': 0.98,
+        'learning_rate': 0.005,
+        'decay_rate': 0.96,
         'decay_every_steps': math.ceil(decay_every_samples / batch_size),
         'test_every_steps': 120,
         'log_every': 4,
@@ -65,17 +66,17 @@ def train_model(num_labels, dataset_type, dataset_name):
         trainset,
         batch_size=batch_size * 2,
         shuffle=True,
-        num_workers=2,
-        prefetch_factor=3,
+        num_workers=0,
+        prefetch_factor=None,
         drop_last=True,
         worker_init_fn=data_utils.seed_init_fn)
 
     testloader = torch.utils.data.DataLoader(
         testset,
-        batch_size=batch_size * 2,
+        batch_size=test_batch_size,
         shuffle=True,
-        num_workers=3,
-        prefetch_factor=3,
+        num_workers=0,
+        prefetch_factor=None,
         drop_last=True,
         worker_init_fn=data_utils.seed_init_fn)
 
@@ -91,7 +92,6 @@ def train(class_counts, trainloader, testloader, params):
     class_cardinality = len(class_counts)
     print(f"Found {class_cardinality} classes in dataset")
 
-    # AsciiClassifierNetwork.calculate_padding(8, 8, 3, 3, 2, 2)
     model = AsciiClassifierNetwork(num_labels=class_cardinality)
     model.to(device)
 
@@ -100,12 +100,12 @@ def train(class_counts, trainloader, testloader, params):
     model.apply(weights_init_uniform_rule)
 
     # Generate class weights
-    class_weights = data_utils.create_class_weights(class_counts, mu=0.0001)
+    class_weights = data_utils.create_class_weights(class_counts, mu=0.0015)
     class_weights = torch.tensor(class_weights, dtype=torch.float)
     class_weights.to(device)
 
     # Loss function / optimizer / Learning rate scheduler
-    criterion = nn.CrossEntropyLoss(weight=class_weights).cuda()
+    criterion = nn.CrossEntropyLoss().cuda()
     optimizer = optim.Adam(model.parameters(), lr=params['learning_rate'])
     scheduler = optim.lr_scheduler.ExponentialLR(optimizer, params['decay_rate'])
 
@@ -132,6 +132,9 @@ def train(class_counts, trainloader, testloader, params):
 
     for epoch in range(params['num_epochs']):
 
+        test_loss = 0
+        accuracy = 0
+
         print()
         print(f"======== EPOCH {epoch}/{params['num_epochs']} ========")
         print()
@@ -141,23 +144,23 @@ def train(class_counts, trainloader, testloader, params):
         progress = tqdm(enumerate(trainloader, 0), total=steps_per_epoch, colour='green')
 
         # Iterate through steps in this Epoch
-        for step, [input, labels] in progress:
+        for step, [input, targets] in progress:
             model.train()
             perf.reset()
-            input, labels = input.to(device), labels.to(device)
+
+            input, targets = input.to(device), targets.to(device)
 
             output = model(input)
-            loss = criterion(output, labels)
+            loss = criterion(output, targets)
             perf.loss.append(loss.item())
 
-            # zero out the parameter gradients
+            # zero out the parameter gradients and run the backward pass
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
 
-            # Track training stats
-            labels = torch.argmax(labels, dim=1, keepdim=True)
-            perf.add_predictions(output, labels)
+            # Get the class indices from logits
+            perf.add_predictions(output, targets)
 
             global_step = (epoch * steps_per_epoch) + step
 
@@ -178,42 +181,43 @@ def train(class_counts, trainloader, testloader, params):
 
             if ((global_step + 1) % params['test_every_steps']) == 0:
                 # perform validation on test dataset
-                model.eval()
+                test_accuracy = 0
                 test_perf.reset()
 
                 try:
-                    input, labels = next(testloader_gen)
+                    test_input, test_targets = next(testloader_gen)
                 except StopIteration:
                     # restart the generator if the previous generator is exhausted.
                     testloader_gen = iter(testloader)
-                    input, labels = next(testloader_gen)
+                    test_input, test_targets = next(testloader_gen)
 
-                input, labels = input.to(device), labels.to(device)
+                test_input, test_targets = test_input.to(device), test_targets.to(device)
+                output = model(test_input)
 
-                output = model(input)
-                test_loss = criterion(output, labels)
+                test_loss = criterion(output, test_targets)
                 test_perf.loss.append(test_loss.item())
 
-                # Calculate the average test loss
-                labels = torch.argmax(labels, dim=1, keepdim=True)
-                test_perf.add_predictions(output, labels)
+                test_perf.add_predictions(output, test_targets)
+                test_accuracy = test_perf.get_accuracy()
 
                 wandb_log({
-                    "Loss/test": test_loss.item(),
-                    "Accuracy/test": test_perf.get_accuracy()},
+                    "Loss/test": test_perf.get_avg_loss(),
+                    "Accuracy/test": test_accuracy},
                     global_step, epoch)
 
-            desc = f"Step: {step} / Loss: "
 
             avg_loss = perf.get_avg_loss()
+            desc = f"Step: {step} / Loss: "
             desc += f"{avg_loss:.3f}" if avg_loss else "n/a"
             desc += f" / Accy: {perf.get_accuracy():.3f} "
-
             progress.set_description(desc)
 
-            # At the end of every epoch, we save the model
-            models.save_model(model, model_filename)
+            # end for each step in epoch
 
+        # At the end of every epoch, we save the model
+        models.save_model(model, model_filename)
+
+    # end for each epoch
 
     print('Finished Training')
 
@@ -237,18 +241,20 @@ def weights_init_uniform_rule(model):
         model.bias.data.fill_(0)
 
 
-def validate(model, testloader, criterion, labels):
+def validate(model, testloader, criterion):
     test_loss = 0
     accuracy = 0
+    model.eval()
+    device = data_utils.get_device()
 
-    for inputs, classes in testloader:
-        inputs = inputs.to('cuda')
+    for inputs, labels in testloader:
+        inputs, labels = inputs.to(device), labels.to(device)
         output = model.forward(inputs)
         test_loss += criterion(output, labels).item()
 
         ps = torch.exp(output)
         equality = (labels.data == ps.max(dim=1)[1])
-        accuracy += equality.type(torch.FloatTensor).mean()
+        accuracy += equality.type(torch.float32).mean()
 
     return test_loss, accuracy
 
@@ -279,7 +285,7 @@ def calc_accuracy(model: torch.nn.Module, x: torch.Tensor, y: torch.Tensor) -> f
 
 
 if __name__ == "__main__":
-    num_classes = 287
+    num_classes = 254
     dataset_type = AsciiC64
     dataset_name = 'ascii_c64'
 

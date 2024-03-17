@@ -94,21 +94,18 @@ class MultiDataset(Dataset):
             csv_file.seek(0)
             csv_file.seek(offset)
             line = csv_file.readline()
-            all_cols = np.array([int(v) for v in line.split("\t")])
+            all_cols = np.array([float(v) for v in line.split("\t")])
             csv_file.seek(0)
 
         # Extract labels (first column)
         label_data = all_cols[0]
-        label_data = np.asarray(label_data, dtype='int16')  # need 2 byte datatype because there are 512 labels
-        label_data.reshape(-1, 1)
-        label_data = label_data.astype('float')
-        label_data = torch.from_numpy(label_data)
+        #label_data = label_data.reshape(-1, 1)
+        label_data = torch.tensor(label_data, dtype=torch.long)
 
         # Extract image data
         image_data = all_cols[1:]
-        image_data = image_data.astype('float')
-
-        image_data = np.asarray(image_data).reshape(8, 8, -1)  # Because of Pytorch's channel first convention
+        image_data = image_data.reshape(1, 8, 8) # reorder dimensions due to Pytorch's channels 1st convention
+        image_data = torch.tensor(image_data, dtype=torch.float32)
 
         if self.transform:
             image_data = self.transform(image_data)
@@ -116,8 +113,6 @@ class MultiDataset(Dataset):
         if self.target_transform:
             label_data = self.target_transform(label_data)
 
-        image_data = image_data.float()
-        label_data = label_data.float()
         sample = [image_data, label_data]
 
         return sample

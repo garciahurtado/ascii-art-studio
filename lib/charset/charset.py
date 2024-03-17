@@ -22,6 +22,7 @@ class Charset:
         self.char_height = char_height
         self.chars = []
         self.pixel_histogram = None
+        self.charset_img = None
 
         self.full_char = Character(np.full((char_height, char_width), 255, dtype=np.uint8))
         full_med = self.full_char.make_low_res(4)
@@ -53,6 +54,7 @@ class Charset:
 
         charset = cv.imread(filename)
         charset = cv.cvtColor(charset, cv.COLOR_BGR2GRAY)
+        self.charset_img = charset
 
         charset_width = charset.shape[1]
         charset_height = charset.shape[0]

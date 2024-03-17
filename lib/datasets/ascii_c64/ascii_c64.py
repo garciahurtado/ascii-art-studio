@@ -24,6 +24,6 @@ class AsciiC64(MultiDataset, BaseDataset):
         super().__init__(transform=transform, target_transform=target_transform, train=train, device=device)
 
     def get_class_counts(self, test=False):
-        return super().get_class_counts_from_csv("c64_class_counts")
+        return super().get_class_counts_from_csv("ascii_c64_class_counts")
 
 
