@@ -40,6 +40,7 @@ FRAME_FULL = 1
 FRAME_DIFF = 2
 FRAME_PALETTE = 3
 
+
 # Show controls
 def show_controls():
     cv.namedWindow('controls')
@@ -49,73 +50,11 @@ def show_controls():
     cv.resizeWindow('controls', 400, 100)
 
 
-dilate_kernel = np.array(([0,1,0],[1,2,1],[0,1,0]), np.uint8)
+dilate_kernel = np.array(([0, 1, 0], [1, 2, 1], [0, 1, 0]), np.uint8)
 
-
-#width, height = 496, 368 # For images
-#width, height = 992, 736 # For images
-width, height = 640, 368  # For video
-# width, height = 640, 272 # Luke Darth video
-
-# Load a charset
-char_width = 8
-char_height = 8
-charset = Charset(char_width, char_height)
-charset_name = 'c64.png'
-charset.load(charset_name, invert=False)
-charmap = []
-num_chars = 254
-
-# Load a palette
-# palette = Palette(char_width=char_width, char_height=char_height)
-# palette.load('atari-st.png')
-
-converter = NeuralAsciiConverterPytorch(charset, 'ascii_c64-Mar17_03-27-13', 'ascii_c64', [8,8], num_labels=num_chars)
-# converter = NeuralAsciiConverter(charset, '20211221-012355-UnsciiExt8x16', [char_width,char_height])
-
-# converter = FeatureAsciiConverter(charset)
-# converter.set_region((0, 5),(12, 25)) # Death star
-# converter.set_region((35, 11),(60, 26)) # Star Wars
-
-# cv.imshow('charset_res_map', charset.show_low_res_maps())
-
-ui = BlockGridWindow('output')
-ui.converter = converter
-ui.show_fps = False
-ui.show_layer = None
-cv.moveWindow('output', 550, 20)
-
-# char_window = CharPickerWindow('characters')
-# char_window.converter = converter
-# char_window.ui_window = ui
-# cv.moveWindow('characters', 10, 750)
-char_window = None
-
-ui.char_picker_window = char_window
-
-
-
-# WEBCAM ----
-# video = cv.VideoCapture(0, cv.CAP_DSHOW) # webcam
-# video.set(cv.CAP_PROP_BUFFERSIZE, 3)
-# video.set(cv.CAP_PROP_FRAME_WIDTH, width)
-# video.set(cv.CAP_PROP_FRAME_HEIGHT, height)
-
-# # VIDEO ----------
-video = VideoPlayer('resources/video/Star Wars - Opening Scene.mp4', resolution=(width, height), zoom=1)
-(width, height) = video.resolution
-video.play()
 
 is_full = True  # First frame is always a full frame
 
-
-# Pipeline
-pipeline_color = ProcessingPipeline()
-pipeline_color.converter = converter
-pipeline_color.img_width = width
-pipeline_color.img_height = height
-pipeline_color.char_width = char_width
-pipeline_color.char_height = char_height
 
 PALETTE_CHANGE_SIGNAL = 77
 
@@ -123,30 +62,26 @@ last_frame_time = 0
 last_palette = None
 binary_output_file = 'web/static/charpeg/video_stream.cpeg'
 
+
 @looper.fps(30)
-def run_block_contrast(ui, pipeline, img_path, layer_window=None):
+def run_block_contrast(ui, pipeline, video_player=None, layer_window=None):
     global total_chars
     global ascii_scale
     global show_grid
     global width, height
     global now
 
-    ## WEBCAM
-    #
-    #_, original = video.read()
-
     ## VIDEO
-    original = video.get_frame()
+    original = video_player.get_frame()
 
     # MoviePy uses RGB, so convert it to BGR
     original = cv.cvtColor(original, cv.COLOR_RGB2BGR)
-
 
     # ## IMAGE
     #
     # img_path = img
     # ui.image_path = img_path
-    #original = cv.imread(img_path)
+    # original = cv.imread(img_path)
 
     ## PROCESSING ##
 
@@ -154,7 +89,7 @@ def run_block_contrast(ui, pipeline, img_path, layer_window=None):
     # final = final3
     final = pipeline.run(original)
 
-    #_, final = colors.palettize(final, palette)
+    # _, final = colors.palettize(final, palette)
 
     chars = converter.match_char_map
     num_chars = converter.count_used_chars()
@@ -183,8 +118,37 @@ def run_block_contrast(ui, pipeline, img_path, layer_window=None):
 
     return ui.get_key()
 
+@looper.fps(30)
+def run_convert_to_png(ui, charset, converter, image_path):
+    image = cv.imread(image_path)
+    height, width = image.shape[0], image.shape[1]
+    height = height - (height % charset.char_height)
+    width = width - (width % charset.char_width)
+    pipeline = get_pipeline(converter, height, width, charset.char_height, charset.char_width)
+    final = pipeline.run(image)
+    ui.show(final)
+    return ui.get_key()
+@looper.fps(60)
+def run_webcam(ui, charset, converter):
+    width, height = 960, 720  # For Logitech webcam video
+    # WEBCAM ----
+    video = cv.VideoCapture(0, cv.CAP_DSHOW) # webcam
+    video.set(cv.CAP_PROP_BUFFERSIZE, 3)
+    video.set(cv.CAP_PROP_FRAME_WIDTH, width)
+    video.set(cv.CAP_PROP_FRAME_HEIGHT, height)
+    _, original = video.read()
 
-def run_all_frames_setup(ui):
+    # Resize
+    width, height = int(width / 2), int(height / 2)
+    pipeline = get_pipeline(converter, height, width, charset.char_height, charset.char_width)
+
+    #resized = cv.resize(original, (width, height))
+
+    final = pipeline.run(original)
+    ui.show(final)
+    return ui.get_key()
+
+def run_all_frames_setup(ui, video):
     # max_frames = 30
     max_frames = None
 
@@ -194,7 +158,7 @@ def run_all_frames_setup(ui):
 
     encoder = Encoder(video.resolution, (char_width, char_height), binary_output_file)
 
-    if(max_frames):
+    if (max_frames):
         num_frames = max_frames
         duration = num_frames / video.fps
     else:
@@ -221,18 +185,18 @@ def run_all_frames_setup(ui):
     ascii_thread.join()
 
 
-def run_all_frames_ascii_thread(frame_buffer, max_frames=None):
+def run_all_frames_ascii_thread(frame_buffer, video, max_frames=None):
     pipeline_ascii = ProcessingPipelineAscii()
     pipeline_ascii.converter = converter
     pipeline_ascii.img_width = width
     pipeline_ascii.img_height = height
 
-    max_palette_frames = 30 # Change palette after n frames
-    palette_frame_count = 0 # Keep track of last palette change
+    max_palette_frames = 30  # Change palette after n frames
+    palette_frame_count = 0  # Keep track of last palette change
     frame_num = 0
 
     for frame in video.get_next_frame():
-        time.sleep(0.001) # Let other threads work
+        time.sleep(0.001)  # Let other threads work
 
         frame = cv.cvtColor(frame, cv.COLOR_RGB2BGR)
         [ascii, contrast, color] = pipeline_ascii.run(frame)
@@ -263,10 +227,10 @@ def run_all_frames_color_thread(ascii_frame_buffer, render_frame_buffer, encoder
     num_colors = 128
     frame_num = 0
 
-    while(True):
-        time.sleep(0.001) # Let other threads work
+    while (True):
+        time.sleep(0.001)  # Let other threads work
 
-        if(len(ascii_frame_buffer) > 0):
+        if (len(ascii_frame_buffer) > 0):
             message = ascii_frame_buffer.popleft()
 
             if message == PALETTE_CHANGE_SIGNAL:
@@ -283,16 +247,16 @@ def run_all_frames_color_thread(ascii_frame_buffer, render_frame_buffer, encoder
 
                 # Store the color indices alongside each frame, to make it easier to palettize them
                 frame_charmap = color_frame_buffer[0][0]
-                size = frame_charmap.shape[0] * frame_charmap.shape[1] * 2 # One for each color
+                size = frame_charmap.shape[0] * frame_charmap.shape[1] * 2  # One for each color
 
-                for i in range(0,len(color_frame_buffer)):
-                    frame_color_idx = color_idx[i*size : (i*size)+size]
+                for i in range(0, len(color_frame_buffer)):
+                    frame_color_idx = color_idx[i * size: (i * size) + size]
                     color_frame_buffer[i].append(frame_color_idx)
                     char_map = color_frame_buffer[i][0]
 
                     # Export to binary file
                     middle = char_map.shape[0] * char_map.shape[1]
-                    char_map = encoder.embed_colors(char_map, frame_color_idx[:middle],  frame_color_idx[middle:])
+                    char_map = encoder.embed_colors(char_map, frame_color_idx[:middle], frame_color_idx[middle:])
 
                     encoder.export_full_or_diff_frame(char_map, last_char_map)
                     last_char_map = char_map.copy()
@@ -403,7 +367,8 @@ def run_orig():
     blended_final = cv.bitwise_or(blended2, blended1)
 
     # Show final image
-    final = cv.resize(blended_final, (blended_final.shape[1] * 2, blended_final.shape[0] * 2), interpolation=cv.INTER_NEAREST)
+    final = cv.resize(blended_final, (blended_final.shape[1] * 2, blended_final.shape[0] * 2),
+                      interpolation=cv.INTER_NEAREST)
     if show_grid:
         ui.show_grid = True
 
@@ -412,24 +377,25 @@ def run_orig():
 
     return ui.get_key()
 
+
 def create_layer_control():
     button_size = (30, 3)
 
     layout = [[gui.Text('Show Layer')],
-              [gui.Button('Original',  size=button_size)],
-              [gui.Button('Otsu Contrast',  size=button_size)],
-              [gui.Button('ASCII',  size=button_size)],
-              [gui.Button('Grid On',  size=button_size)],
-              [gui.Button('Grid Off',  size=button_size)],
-              [gui.Button('Final',  size=button_size)]
-    ]
-    window = gui.Window('Layer Control', layout, location=(100,100))
+              [gui.Button('Original', size=button_size)],
+              [gui.Button('Otsu Contrast', size=button_size)],
+              [gui.Button('ASCII', size=button_size)],
+              [gui.Button('Grid On', size=button_size)],
+              [gui.Button('Grid Off', size=button_size)],
+              [gui.Button('Final', size=button_size)]
+              ]
+    window = gui.Window('Layer Control', layout, location=(100, 100))
     return window
 
-def show_layer_control(layer_window, ui):
 
+def show_layer_control(layer_window, ui):
     # Layer control GUI
-    event, values = layer_window.read(timeout=300) # Use timeout so we don't block waiting for layer window input
+    event, values = layer_window.read(timeout=300)  # Use timeout so we don't block waiting for layer window input
     if event == 'Original':  # if user closes window or clicks cancel
         ui.show_layer = 'original'
     elif event == 'Otsu Contrast':
@@ -443,29 +409,37 @@ def show_layer_control(layer_window, ui):
     elif event == 'Grid Off':
         ui.show_grid = False
 
+
 def set_diff_empty_threshold(value):
     charset.diff_empty_threshold = value
+
 
 def set_diff_full_threshold(value):
     charset.diff_full_threshold = value
 
+
 def set_diff_match_min_threshold(value):
     charset.diff_match_min_threshold = value
 
+
 def set_diff_match_max_threshold(value):
     charset.diff_match_max_threshold = value
+
 
 def set_ascii_scale(value):
     global ascii_scale
     ascii_scale = value
 
+
 def set_resize_threshold(value):
     global resize_threshold
     resize_threshold = value
 
+
 def set_grid(value):
     global show_grid
     show_grid = value
+
 
 def show_palette(start_x, start_y, colors, orig):
     total_rows = 10
@@ -477,10 +451,11 @@ def show_palette(start_x, start_y, colors, orig):
         row = math.floor(i / total_cols)
         palette_img[row, col] = color
 
-    palette_img = cv.resize(palette_img, ( total_cols * 8, total_rows * 8), interpolation=cv.INTER_NEAREST)
+    palette_img = cv.resize(palette_img, (total_cols * 8, total_rows * 8), interpolation=cv.INTER_NEAREST)
     width, height = palette_img.shape[1], palette_img.shape[0]
-    orig[start_y:start_y+height, start_x:start_x + width] = palette_img
+    orig[start_y:start_y + height, start_x:start_x + width] = palette_img
     return orig
+
 
 def mouse_click(event, x, y, flags, param):
     global mouse_x, mouse_y
@@ -495,10 +470,124 @@ def mouse_click(event, x, y, flags, param):
         sel_row = int(mouse_y / char_height)
         selected_block = (sel_row, sel_col)
 
+def show_video_controls(ui):
+    win = cv.namedWindow(ui.window_name)
+    # Create buttons
+    button_width = 100
+    button_height = 50
+    button_color = (200, 200, 200)
+    text_color = (0, 0, 0)
+    button_gap = 10
+
+    # Create a blank image for buttons
+    buttons = np.zeros((button_height, win.frame_width, 3), np.uint8)
+
+    # Create rewind button
+    cv.rectangle(buttons, (button_gap, 0), (button_gap + button_width, button_height), button_color, -1)
+    cv.putText(buttons, 'Rewind', (button_gap + 10, 30), cv.FONT_HERSHEY_SIMPLEX, 0.7, text_color, 2)
+
+    # Create pause/play button
+    cv.rectangle(buttons, (button_gap * 2 + button_width, 0), (button_gap * 2 + button_width * 2, button_height),
+                  button_color, -1)
+    cv.putText(buttons, 'Pause/Play', (button_gap * 2 + button_width + 10, 30), cv.FONT_HERSHEY_SIMPLEX, 0.7,
+                text_color, 2)
+
+    # Create end button
+    cv.rectangle(buttons, (button_gap * 3 + button_width * 2, 0), (button_gap * 3 + button_width * 3, button_height),
+                  button_color, -1)
+    cv.putText(buttons, 'End', (button_gap * 3 + button_width * 2 + 10, 30), cv.FONT_HERSHEY_SIMPLEX, 0.7, text_color,
+                2)
+
+    # Initialize variables
+    current_frame = 0
+    playing = True
+
+    # while True:
+    #     if playing:
+    #         ret, frame = video.read()
+    #         if not ret:
+    #             break
+    #         current_frame += 1
+    #     else:
+    #         frame = np.zeros((frame_height, frame_width, 3), np.uint8)
+    #
+    #     # Combine the video frame and buttons
+    #     frame_with_buttons = np.vstack((frame, buttons))
+    #
+    #     cv.imshow('Video Player', frame_with_buttons)
+    #
+    #     key = cv.waitKey(int(1000 / fps))
+    #     if key == ord('q'):
+    #         break
+    #     elif key == ord('r'):
+    #         video.set(cv.CAP_PROP_POS_FRAMES, 0)
+    #         current_frame = 0
+    #     elif key == ord('p'):
+    #         playing = not playing
+    #     elif key == ord('e'):
+    #         current_frame = total_frames - 1
+    #         video.set(cv.CAP_PROP_POS_FRAMES, current_frame)
+    #         playing = False
+
+
+def get_pipeline(converter, height, width, char_height, char_width):
+    pipeline = ProcessingPipeline()
+    pipeline.converter = converter
+    pipeline.img_width = width
+    pipeline.img_height = height
+    pipeline.char_height = char_height
+    pipeline.char_width = char_width
+    pipeline.palette = palette
+
+    return pipeline
+
 
 if __name__ == "__main__":
+    # width, height = 496, 368 # For images
+    # width, height = 992, 736 # For images
+    width, height = 640, 368  # For video
+    # width, height = 640, 272 # Luke Darth video
+
+    # Load a charset
+    char_width, char_height = 8, 16
+    charset = Charset(char_width, char_height)
+    charset_name = 'ubuntu-mono_8x16.png'
+    charset.load(charset_name, invert=False)
+    charmap = []
+    num_chars = 734
+
+    # Load a palette
+    palette = Palette(char_width=char_width, char_height=char_height)
+    palette.load('atari-st.png')
+
+    converter = NeuralAsciiConverterPytorch(charset, 'ubuntu_mono-Mar24_01-42-34', 'ubuntu_mono', [8, 16],
+                                            num_labels=num_chars)
+
+    # converter = NeuralAsciiConverter(charset, '20211221-012355-UnsciiExt8x16', [char_width,char_height])
+
+    # converter = FeatureAsciiConverter(charset)
+    # converter.set_region((0, 5),(12, 25)) # Death star
+    # converter.set_region((35, 11),(60, 26)) # Star Wars
+
+    # cv.imshow('charset_res_map', charset.show_low_res_maps())
+
+    ui = BlockGridWindow('output')
+    ui.converter = converter
+    ui.show_fps = False
+    ui.show_layer = None
+    cv.moveWindow('output', 550, 20)
+
+    # char_window = CharPickerWindow('characters')
+    # char_window.converter = converter
+    # char_window.ui_window = ui
+    # cv.moveWindow('characters', 10, 750)
+    char_window = None
+
+    ui.char_picker_window = char_window
+
     #show_controls()
-    #layer_window = create_layer_control()
+    #show_video_controls(ui)
+    # layer_window = create_layer_control()
     layer_window = None
     is_full = True
     last_char_map = None
@@ -506,11 +595,14 @@ if __name__ == "__main__":
     # cProfile.run('run_block_contrast(ui, char_window, layer_window)', sort='tottime')
     # run_all_frames_setup(ui)
 
-    pipeline = ProcessingPipeline()
-    pipeline.converter = converter
-    pipeline.img_width = width
-    pipeline.img_height = height
-    pipeline.char_height = char_height
-    pipeline.char_width = char_width
+    pipeline = get_pipeline(converter, height, width, char_height, char_width)
 
-    run_block_contrast(ui, pipeline, 'resources/images/tank-girl.png', layer_window=layer_window)
+    player = VideoPlayer('resources/video/Star Wars - Opening Scene.mp4', resolution=(width, height), zoom=1)
+    (width, height) = player.resolution
+    player.play(sound=True)
+    # run_convert_to_png(ui, charset, converter, 'resources/images/joker.png')
+    # run_webcam(ui, charset, converter)
+
+    run_block_contrast(ui, pipeline, player, layer_window=layer_window)
+    # 'resources/video/Star Wars - Opening Scene.mp4'
+    # 'resources/video/Akira - bike scene.mp4'

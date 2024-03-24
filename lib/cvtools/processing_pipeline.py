@@ -61,7 +61,7 @@ class ProcessingPipeline():
         return output_img
 
     """Disabled for video, since we resize at frame capture time"""
-    def xxrun_resize_with_padding(self, input_img):
+    def _run_resize_with_padding(self, input_img):
         actual_height = input_img.shape[0]
         actual_width = input_img.shape[1]
 
@@ -76,12 +76,6 @@ class ProcessingPipeline():
         return output_img
 
 
-    def _run_brightness_saturation(self, input_img):
-        output_img = color_filters.brightness_saturation(input_img, 1.1, 1.4)
-
-        return output_img
-
-
     def _run_create_grayscale(self, input_img):
         grayscale = input_img.copy()
         # grayscale = colors.brightness_contrast(grayscale, 20, 20)
@@ -91,7 +85,7 @@ class ProcessingPipeline():
 
 
     def _run_create_high_contrast(self, input_img):
-        self.contrast_img = filters.block_contrast(self.grayscale, (self.char_height, self.char_width), invert=self.invert)
+        self.contrast_img = filters.block_contrast(self.grayscale, (self.char_height*2, self.char_width*2), invert=self.invert)
 
         return input_img
 
@@ -111,13 +105,14 @@ class ProcessingPipeline():
         self.ascii = self.converter.convert_image(self.contrast_img)
         self.ascii_inv = cv.bitwise_not(self.ascii)
 
-        return self.contrast_img
+        return self.ascii
 
 
     def _run_extract_colors_from_mask(self, mask_img):
         char_size = [self.char_width, self.char_height]
-        self.fg_colors = color_filters.extract_colors_from_mask(self.color, mask_img, char_size)
-        self.bg_colors = color_filters.extract_colors_from_mask(self.color, mask_img, char_size, invert=True)
+        inv_contrast = cv.bitwise_not(self.contrast_img)
+        self.fg_colors = color_filters.extract_colors_from_mask(self.color, mask_img, self.contrast_img, char_size)
+        self.bg_colors = color_filters.extract_colors_from_mask(self.color, mask_img, self.contrast_img, char_size, invert=True)
 
         return mask_img
 
@@ -135,20 +130,21 @@ class ProcessingPipeline():
         bg_ascii = cv.bitwise_and(self.ascii_inv, bg_colors_big)
 
         self.color_ascii = cv.bitwise_or(bg_ascii, fg_ascii)
+        # self.color_ascii = color_filters.palettize(self.color_ascii, self.palette)
 
         return bg_ascii
 
 
-    def _run_block_colors(self, _):
+    def __run_block_colors(self, _):
         # Resize to img / character-size since we only need one color per 8x8 block
         dims = (int(self.img_width / self.char_width), int(self.img_height / self.char_height))
-        flat_colors = cv.resize(self.original, dims, interpolation=cv.INTER_NEAREST)
+        flat_colors = cv.resize(self.color, dims, interpolation=cv.INTER_LANCZOS4)
 
         # Resize back up to original size
-        flat_colors = cv.resize(flat_colors, (self.img_width, self.img_height), interpolation=cv.INTER_NEAREST)
+        flat_colors = cv.resize(flat_colors, (self.img_width, self.img_height), interpolation=cv.INTER_NEAREST_EXACT)
         flat_colors_masked = cv.bitwise_and(flat_colors, flat_colors, mask=self.color_mask)
 
-        self.flat_colors = flat_colors_masked
+        self.flat_colors = flat_colors
 
         return _
 
@@ -156,7 +152,7 @@ class ProcessingPipeline():
     def _run_final_blend(self, _):
         """Final mix between colored ASCII blocks and flat color blocks"""
         #blended = cv.bitwise_or(self.color_ascii, self.flat_colors)
-
+        #self.color_ascii = color_filters.quantize_img(self.color_ascii)
         return self.color_ascii
 
     def _run_final_resize(self, input_img):

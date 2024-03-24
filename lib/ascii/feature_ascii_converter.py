@@ -98,7 +98,7 @@ class FeatureAsciiConverter(ShiftingAsciiConverter):
     def convert_image(self, input_image):
         # Slice up the B&W input image into blocks and match each of them to an ASCII characters
         width, height = input_image.shape[1], input_image.shape[0]
-        block_cols, block_rows = math.ceil(width / self.char_width), math.ceil(height / self.char_height)
+        block_cols, block_rows = math.floor(width / self.char_width), math.floor(height / self.char_height)
 
         print(f" cols: {block_cols} rows: {block_rows}")
 

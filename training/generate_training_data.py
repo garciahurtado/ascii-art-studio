@@ -22,15 +22,16 @@ from cvtools.processing_pipeline import ProcessingPipeline
 IN_DIR = 'images/in/'
 OUT_DIR = 'images/out/'
 #WIDTH, HEIGHT = 496, 360  # For images
-WIDTH, HEIGHT = 584, 360  # For video 8x8 (and video stills)
-# WIDTH, HEIGHT = 1168, 736  # For video 8x16
+#WIDTH, HEIGHT = 1048, 496  # For video 8x8 (and video stills)
+WIDTH, HEIGHT = 1168, 480  # For video 8x16
+#WIDTH, HEIGHT = 584, 368  # half size 8x16
 all_used_chars = [] # For stats
 
-charset_name = 'c64.png'
-char_width, char_height = 8, 8
+charset_name = 'ubuntu-mono_8x16.png'
+char_width, char_height = 8, 16
 charset = Charset(char_width, char_height)
 charset.load(charset_name)
-
+# charset.write('unscii_8x8-packed.png') # pack the character set (only needed once)
 
 def create_single_image(filename, index, csv=True, labels=False, skip_blank_rows=True, random_inverted=False, double_inverted=True):
 
@@ -40,13 +41,18 @@ def create_single_image(filename, index, csv=True, labels=False, skip_blank_rows
         in_img = cv.imread(filename)
 
         out_filename = f"{index:06d}"
-        convert_image(in_img, labels, out_filename, random_inverted=random_inverted)
+        convert_image(in_img, labels, out_filename)
 
-        out_filename = f"{index:06d}-inv"
-        convert_image(in_img, labels, out_filename, random_inverted=random_inverted, is_inverted=True)
+        if double_inverted:
+            out_filename = f"{index:06d}-inv"
+            convert_image(in_img, labels, out_filename, is_inverted=True)
+
+        return True
+    else:
+        return False
 
 
-def convert_image(in_img, labels, filename, random_inverted=False, is_inverted=False):
+def convert_image(in_img, labels, filename, is_inverted=False):
     out_file_contrast = OUT_DIR + f'{filename}-contrast.png'
     out_file_ascii = OUT_DIR + f'{filename}-ascii.png'
 
@@ -108,7 +114,7 @@ def create_training_images(csv=True, start_index=0):
     :rtype: None
     """
     entries = os.listdir(IN_DIR)
-    num_threads = 8
+    num_threads = 16
     start_time = arrow.utcnow()
 
     with Pool(num_threads) as p:
@@ -131,7 +137,7 @@ def create_training_images(csv=True, start_index=0):
     print(f"{num_entries} images processed by {num_threads} threads in: {time_diff}")
 
     # Display character histogram
-    show_hist = True
+    show_hist = False
     if(show_hist):
         counts = Counter(all_used_chars)
 
@@ -162,10 +168,10 @@ def create_training_images(csv=True, start_index=0):
         plt.show()
 
 
-def make_charset_index_table(charset, char_width=8, char_height=8):
+def make_charset_index_table(charset):
     """Generate an image showing each character and their corresponding index in the charset they were loaded from.
     This is needed for model training, as those indexes will become the labels"""
-
+    char_width, char_height = charset.char_width, charset.char_height
     size = (len(charset) * char_height, char_width * 5)
     img = np.zeros(size, dtype=np.uint8)
 

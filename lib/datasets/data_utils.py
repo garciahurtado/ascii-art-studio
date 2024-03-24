@@ -107,7 +107,7 @@ def split_dataset(dataset, test_split=0.2, random_state=0, charset_name=None):
     return trainset, testset
 
 
-def get_dataset(train=True, dataset_type=None, num_labels=None):
+def get_dataset(train=True, dataset_type=None, char_height=8, char_width=8, num_labels=None):
     # Skip the OneHot transform as long as we are using CrossEntropyLoss
     # transform = transforms.Compose(
     #     [transforms.ToTensor()])
@@ -120,14 +120,17 @@ def get_dataset(train=True, dataset_type=None, num_labels=None):
         train=train,
         device=get_device())
 
+    dataset.char_width = char_width
+    dataset.char_height = char_height
     return dataset
 
 
-def write_dataset_class_counts(path, num_classes, dataset_type):
+def write_dataset_class_counts(path, num_classes, dataset_type, char_width=8, char_height=8):
     # Extract class counts for class weights
 
     print("Evaluating class counts... This may take some time")
-    counts = get_class_counts(get_dataset(num_labels=num_classes, dataset_type=dataset_type), num_classes)
+    dataset = get_dataset(num_labels=num_classes, dataset_type=dataset_type, char_width=char_width, char_height=char_height)
+    counts = get_class_counts(dataset, num_classes)
     pd.DataFrame(counts).to_csv(f"{path}.csv", header=False)
 
     # counts = data_utils.get_class_counts(get_dataset(train=False))

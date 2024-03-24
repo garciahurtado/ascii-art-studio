@@ -14,6 +14,8 @@ from torch.utils.data import Subset
 
 import wandb
 
+from charset import Charset
+
 sys.path.append('../lib')
 
 from tqdm import tqdm
@@ -24,41 +26,43 @@ import torch.nn as nn
 
 from datasets.ascii_amstrad_cpc.ascii_amstrad_cpc import AsciiAmstradCPC
 from datasets.ascii_c64.ascii_c64 import AsciiC64
+from datasets.unscii_8x8 import Unscii8x8
+from datasets.ubuntu_mono import UbuntuMono
 from net.ascii_classifier_network import AsciiClassifierNetwork
 from performance_monitor import PerformanceMonitor
 import datasets.data_utils as data_utils
 import pytorch.model_manager as models
 
 
-def train_model(num_labels, dataset_type, dataset_name):
+def train_model(num_labels, dataset_type, dataset_name, charset=None):
     # Eliminate randomness to increase training reproducibility
     torch.manual_seed(123456)
     np.random.seed(123456)
     random_state = 99
 
-    batch_size = 2048
+    batch_size = 512
     test_batch_size = batch_size * 10
 
     # Load datasets
-    trainset = data_utils.get_dataset(train=True, dataset_type=dataset_type, num_labels=num_labels)
-    testset = data_utils.get_dataset(train=False, dataset_type=dataset_type, num_labels=num_labels)
+    trainset = data_utils.get_dataset(train=True, dataset_type=dataset_type, num_labels=num_labels, char_width=charset.char_width, char_height=charset.char_height)
+    #testset = data_utils.get_dataset(train=False, dataset_type=dataset_type, num_labels=num_labels)
 
-    # trainset, testset = data_utils.split_dataset(trainset, 0.2, random_state=random_state, charset_name=dataset_name)
+    trainset, testset = data_utils.split_dataset(trainset, 0.5, random_state=random_state, charset_name=dataset_name)
     class_counts = trainset.get_class_counts()
     num_train_samples = len(trainset)
 
     steps_per_epoch = num_train_samples / batch_size
-    decay_every_samples = 512 * 1000
+    decay_every_samples = 256 * 1000
 
     params = {
         'batch_size': batch_size,
-        'num_epochs': 30,
+        'num_epochs': 10,
         'num_train_samples': num_train_samples,
         'steps_per_epoch': steps_per_epoch,
-        'learning_rate': 0.005,
+        'learning_rate': 0.0005,
         'decay_rate': 0.96,
         'decay_every_steps': math.ceil(decay_every_samples / batch_size),
-        'test_every_steps': 120,
+        'test_every_steps': 64,
         'log_every': 4,
     }
 
@@ -66,7 +70,7 @@ def train_model(num_labels, dataset_type, dataset_name):
         trainset,
         batch_size=batch_size * 2,
         shuffle=True,
-        num_workers=0,
+        num_workers=2,
         prefetch_factor=None,
         drop_last=True,
         worker_init_fn=data_utils.seed_init_fn)
@@ -75,7 +79,7 @@ def train_model(num_labels, dataset_type, dataset_name):
         testset,
         batch_size=test_batch_size,
         shuffle=True,
-        num_workers=0,
+        num_workers=2,
         prefetch_factor=None,
         drop_last=True,
         worker_init_fn=data_utils.seed_init_fn)
@@ -100,9 +104,9 @@ def train(class_counts, trainloader, testloader, params):
     model.apply(weights_init_uniform_rule)
 
     # Generate class weights
-    class_weights = data_utils.create_class_weights(class_counts, mu=0.0015)
-    class_weights = torch.tensor(class_weights, dtype=torch.float)
-    class_weights.to(device)
+    # class_weights = data_utils.create_class_weights(class_counts, mu=0.00015)
+    # class_weights = torch.tensor(class_weights, dtype=torch.float)
+    # class_weights.to(device)
 
     # Loss function / optimizer / Learning rate scheduler
     criterion = nn.CrossEntropyLoss().cuda()
@@ -113,11 +117,11 @@ def train(class_counts, trainloader, testloader, params):
     os.environ["WANDB_SILENT"] = "true"
     wandb.login(key='e6533f84f309fe9d42fd1e3577f8ba162ed921c0')
     wandb.init(
-        project='pytorch-c64',
+        project='pytorch-ubuntu_mono_8x16',
         entity='ghurtado',
         config=params)
 
-    dataset_name = 'ascii_c64'
+    dataset_name = 'ubuntu_mono'
     model_filename = models.generate_model_filename(dataset_name)
     print(f"Saving model to: {model_filename}")
 
@@ -131,9 +135,6 @@ def train(class_counts, trainloader, testloader, params):
     testloader_gen = iter(testloader)
 
     for epoch in range(params['num_epochs']):
-
-        test_loss = 0
-        accuracy = 0
 
         print()
         print(f"======== EPOCH {epoch}/{params['num_epochs']} ========")
@@ -285,9 +286,21 @@ def calc_accuracy(model: torch.nn.Module, x: torch.Tensor, y: torch.Tensor) -> f
 
 
 if __name__ == "__main__":
-    num_classes = 254
-    dataset_type = AsciiC64
-    dataset_name = 'ascii_c64'
+    charset_name = 'ubuntu-mono_8x16.png'
+    char_width, char_height = 8, 16
+    charset = Charset(char_width, char_height)
+    charset.load(charset_name)
 
-    # data_utils.write_dataset_class_counts(f'lib/datasets/{dataset_name}/data/{dataset_name}_class_counts', num_classes, dataset_type)
-    train_model(num_classes, dataset_type, dataset_name)
+    num_classes = 734
+    dataset_type = UbuntuMono
+    dataset_name = 'ubuntu_mono'
+
+    """
+    data_utils.write_dataset_class_counts(
+        f'lib/datasets/{dataset_name}/data/{dataset_name}_class_counts',
+        num_classes,
+        dataset_type,
+        char_width=char_width,
+        char_height=char_height)
+    """
+    train_model(num_classes, dataset_type, dataset_name, charset=charset)

@@ -1,9 +1,12 @@
+import json
 import math
 import os
 import cv2 as cv
 import numpy as np
 import matplotlib.pyplot as plt
 from collections import defaultdict
+
+import unicodedata
 
 from .character import Character
 
@@ -23,6 +26,7 @@ class Charset:
         self.chars = []
         self.pixel_histogram = None
         self.charset_img = None
+        self.hex_codes = None
 
         self.full_char = Character(np.full((char_height, char_width), 255, dtype=np.uint8))
         full_med = self.full_char.make_low_res(4)
@@ -105,7 +109,45 @@ class Charset:
 
         print(f"{len(self.chars)} total characters loaded")
 
+        self.load_metadata(filename)
+
         return
+
+    def load_metadata(self, img_file):
+        # Remove .png from the img filename and add .json
+        json_file = img_file.replace(".png", ".json")
+        if os.path.exists(json_file):
+            with open(json_file, 'r') as file:
+                all_json = json.load(file)
+                self.hex_codes = all_json["hex_codes"]
+        else:
+            print(f"No metadata file {json_file} found")
+
+
+    def print_unicode_chars(self, show_hex=False):
+        total = 0
+
+        for i, hex_code in enumerate(self.hex_codes, 1):
+            try:
+                character = chr(int(hex_code, 16))
+
+                character = character + hex_code if show_hex else character
+                print(f"{character}", end="")
+
+                total = total + 1
+
+                if total % 16 == 0:
+                    print()
+            except ValueError:
+                print(f"Invalid hex code: {hex_code}", end="\t")
+
+                if i % 16 == 0:
+                    print()
+
+        if len(self.hex_codes) % 16 != 0:
+            print()
+
+        print(f"{total} characters printed")
 
     def write(self, filename):
         """
@@ -144,7 +186,7 @@ class Charset:
                 idx = (i*num_cols) + j
                 all_row_chars.append(chars[idx].img)
 
-            rows.append(cv.vconcat(all_row_chars))
+            rows.append(cv.hconcat(all_row_chars))
 
         charmap = cv.vconcat(rows)
         cv.imwrite(self.CHARSETS_DIR + filename, charmap)

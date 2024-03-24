@@ -1,0 +1,4 @@
+1. Parse + render along the way:
+
+*** All frames time: 6787ms ascii_movie_player.js:275:17
+*** 99 frames @ 68.55555555555556ms per frame

@@ -148,3 +148,5 @@ cython_debug/
 /lib/datasets/ascii_c64/data/old/
 /lib/datasets/ascii_c64/data/hold/
 /lib/datasets/ascii_c64/data/new/
+*/data/train/
+*/data/test/

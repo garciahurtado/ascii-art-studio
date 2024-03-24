@@ -31,8 +31,7 @@ def eval_model(dataset_type, dataset_name, model_filename, num_classes, charset)
         dataset,
         batch_size=batch_size,
         shuffle=True,
-        num_workers=4,
-        pin_memory=False)
+        num_workers=4)
 
     # Initialize metrics
     metric = torchmetrics.Accuracy(task='multiclass', num_classes=num_classes, average='weighted')
@@ -90,7 +89,6 @@ def eval_model(dataset_type, dataset_name, model_filename, num_classes, charset)
                 print(f"Class {class_name}: Accuracy = {precision}")
 
 
-
     accuracy = metric.compute() * 100
     end = time.time()
     duration = end - start
@@ -140,7 +138,9 @@ def make_charset_accuracy_map(charset_image, accy_report, model_name):
         charset_image[y1:y2, x1:x2] = overlay_block
 
     # Save the overlay image
-    cv.imwrite(f'./resources/eval/charset_accuracy_map-{model_name}.png', charset_image)
+    accy_image_path = f'./resources/eval/charset_accuracy_map-{model_name}.png'
+    cv.imwrite(accy_image_path, charset_image)
+    print(f'Written character accuracy map to: {accy_image_path}')
 
 def color_accuracy(accuracy):
     # Interpolate between red (0%, 0, 255), yellow (50%, 255, 255), and green (100%, 0, 255)
@@ -213,7 +213,7 @@ def visTensor(tensor, ch=0, allkernels=False, nrow=8, padding=1):
 if __name__ == "__main__":
     dataset_type = AsciiC64
     dataset_name = 'ascii_c64'
-    model_filename = 'ascii_c64-Mar17_03-27-13'
+    model_filename = 'ascii_c64-Mar17_21-33-46'
     num_classes = 254
     char_width = 8
     char_height = 8

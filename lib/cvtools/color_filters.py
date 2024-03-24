@@ -5,9 +5,10 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 
-def extract_colors_from_mask(color_img, mask, block_size, invert=False):
+def extract_colors_from_mask(color_img, mask, contrast_mask, block_size, invert=False):
     if invert:
         mask = cv.bitwise_not(mask)
+        contrast_mask = cv.bitwise_not(contrast_mask)
 
     width, height = color_img.shape[1], color_img.shape[0]
     block_width, block_height = block_size
@@ -29,10 +30,11 @@ def extract_colors_from_mask(color_img, mask, block_size, invert=False):
         for col in range(0, num_cols):
             x = col * block_width
 
-            block_mask = mask[y : y + block_height, x : x + block_width]
+            mask_block = mask[y : y + block_height, x : x + block_width]
+            contrast_block = contrast_mask[y : y + block_height, x : x + block_width]
             color_block = color_img[y : y + block_height, x : x + block_width]
 
-            color = extract_color_from_block(color_block, block_mask)
+            color = extract_color_from_block(color_block, mask_block, contrast_block)
             out_img[row, col] = color
 
 
@@ -84,18 +86,20 @@ def extract_colors_from_char_mask(img, characters, invert=False):
     return out_img
 
 
-def extract_color_from_block(img, mask):
+def extract_color_from_block(img, mask, contrast_mask):
     """ Assumes BGR color format for the img"""
+    avg_ascii = cv.mean(img, mask=mask)
+    avg_contrast = cv.mean(img, mask=contrast_mask)
 
-    avg = cv.mean(img, mask=mask)
+    color1 = (avg_ascii[0], avg_ascii[1], avg_ascii[2])
+    color2 = (avg_contrast[0], avg_contrast[1], avg_contrast[2])
 
-    if(len(avg) == 0):
-        color = [0, 0, 0]
-    else:
-        color = (int(avg[0]), int(avg[1]), int(avg[2]))
+    # average the two colors
+    final = (int((color1[0] + color2[0]) / 2),
+             int((color1[1] + color2[1]) / 2),
+             int((color1[2] + color2[2]) / 2))
 
-
-    return color
+    return final
 
 
 def palettize(img, palette, scale=1, color_idx=None):
@@ -218,7 +222,7 @@ def brightness_contrast(input_img, brightness=0, contrast=0):
 
     return buf
 
-def quantize_img(img, bitdepth=[3,3,2]):
+def quantize_img(img, bitdepth=[3,4,4]):
     ''' We quantize every color in the image at once by creating a special image which
     works as a mask to remove the least significant bits of each color. We apply
     this mask with bitwise AND to every pixel in the NumPy array at once. '''
@@ -237,14 +241,6 @@ def quantize_img(img, bitdepth=[3,3,2]):
     img = np.bitwise_and(img, color_mask)
 
     return img
-
-
-def quantize_color(pixel):
-    # @DEPRECATED
-    # By applying the AND bitmask below, we downsample each color component
-    pixel[0] = pixel[0] & 0b11100000
-    pixel[1] = pixel[1] & 0b11100000
-    pixel[2] = pixel[2] & 0b11000000
 
 def quantize_color_division(pixel, factor=8):
     # @DEPRECATED

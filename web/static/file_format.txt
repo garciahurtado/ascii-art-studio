@@ -1,0 +1,68 @@
+Binary file format for video encoding - "Charpeg" (.cpeg)
+---------------------------------------------------------
+
+Stream Header:
+--------------
+
+Bytes:
+1,2,3,4: magic number (CPEG in ASCII)
+1: Frame flags
+    FRAME_FULL = 1
+    FRAME_DIFF = 2
+    FRAME_PALETTE = 3
+    FRAME_HEADER = 4
+2: FPS
+3,4: Total number of frames
+5,6: duration, in seconds
+7: frame width, in blocks
+8: frame height, in blocks
+9: Block width, in pixels
+10: Block height, in pixels
+11: Charset name (length)
+12+: Charset name
+
+
+First frame encoding:
+
+header:
+-------
+
+Bytes:
+1: Frame flags
+2:  frame width, in blocks (0-255)
+3:  frame height, in blocks (0-255)
+4,5:  number of blocks: if less than width x height, this is a diff frame. Otherwise its a full frame.
+
+    Full frames are a series of blocks that are contiguous in space. They must contain
+    exactly the number of blocks that fills the frame, and every block record is the same length.
+
+    Diff frames only have absolute blocks, which specify their coordinates, and are therefore
+    longer block records. There may be gaps in diff frames, in which case they are filled with
+    the blocks from the previous frame.
+
+6+:
+
+image data:
+-----------
+
+[series of variable length blocks]
+
+Bytes:
+
+
+ * relative blocks are 8 bytes long:
+
+   1,2: ASCII character index
+   3,4,5: RGB foreground color
+   6,7,8: RGB background color
+
+ * absolute blocks are 10 bytes long:
+
+   1,2: ASCII character index
+   3,4,5: RGB foreground color
+   6,7,8: RGB background color
+   9: x coordinate position (column)
+   10: y coordinate position (row)
+
+
+

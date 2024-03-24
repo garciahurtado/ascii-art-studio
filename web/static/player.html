@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>ASCII Format Image / Video Player</title>
+    <script type="text/javascript" src="js/video_decoder.js"></script>
+    <script type="text/javascript" src="js/ascii_movie_player.js"></script>
+    <script type="text/javascript" src="js/video_frame.js"></script>
+    <script type="text/javascript" src="js/palette_frame.js"></script>
+    <script type="text/javascript" src="js/fps_runner.js"></script>
+    <script type="text/javascript" src="js/app.js"></script>
+    <link href="css/style.css" type="text/css" rel="stylesheet"/>
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons"
+      rel="stylesheet">
+</head>
+<body>
+
+<div class="main">
+    <div id="player_frame">
+        <canvas id="player">
+        </canvas>
+
+
+        <div id="bars">
+            <div id="load_bar">
+                <div id="playhead"></div>
+            </div>
+            <div id="prog_bar"></div>
+            <div id="scrub_bar"></div>
+        </div>
+
+        <div class="controls">
+            <button id="start" title="Restart Video" class="large">first_page</button>
+            <button id="prev_frame" title="Previous Frame" class="large">chevron_left</button>
+
+            <button id="pause" title="Pause / Play">
+                <span id="pause_button">pause_circle_outline</span>
+                <span id="play_button">play_circle_outline</span>
+            </button>
+
+            <button id="next_frame" title="Next Frame" class="large">chevron_right</button>
+            <button id="end" title="Go to End"  class="large">last_page</button>
+
+            <span class="tools">
+                <button id="view_grid" title="View Grid"  class="small">grid_4x4</button>
+                <button id="show_palette" title="Show Palette" class="small">palette</button>
+            </span>
+
+            <div id="palette">
+                <canvas id="palette_canvas">
+                </canvas>
+            </div>
+
+            <div class="frame_counter_div">frame:<input type="text" value="0" id="frame_counter"></div>
+        </div>
+
+    </div>
+
+    <img id="charset" width="0" height="0"/>
+</div>
+
+</body>
+</html>

@@ -21,6 +21,8 @@ class MultiDataset(Dataset):
         super(MultiDataset, self).__init__()
         self.transform = transform
         self.target_transform = target_transform
+        self.char_height = 8
+        self.char_width = 8
 
         if train:
             self.data_root = os.path.join(self.data_root, 'train')
@@ -104,7 +106,7 @@ class MultiDataset(Dataset):
 
         # Extract image data
         image_data = all_cols[1:]
-        image_data = image_data.reshape(1, 8, 8) # reorder dimensions due to Pytorch's channels 1st convention
+        image_data = image_data.reshape(1, self.char_height, self.char_width) # reorder dimensions due to Pytorch's channels 1st convention
         image_data = torch.tensor(image_data, dtype=torch.float32)
 
         if self.transform:

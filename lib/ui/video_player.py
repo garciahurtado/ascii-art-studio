@@ -40,17 +40,18 @@ class VideoPlayer():
         self.frames = self.video.iter_frames()
         self.current_frame = 0
 
-        audioclip = AudioFileClip(video_filename, fps=sound_rate)
-
-        # self.audio = audioclip.to_soundarray(fps=sound_rate)
+        #audioclip = AudioFileClip(video_filename)
+        #self.audio = self.video.set_audio(audioclip)
+        #self.audio = self.video.audio.to_soundarray(fps=audioclip.fps, buffersize=50000, nbytes=4)
 
 
     def play(self, sound=False):
         self.paused = False
         self.start_time = time.time()
+        #audio.play(self.audio)
 
-        if(sound):
-            audio.play(self.audio, self.sound_rate)
+        #if(sound):
+        #    audio.play(self.audio, self.sound_rate)
 
     def pause(self):
         self.paused = True
