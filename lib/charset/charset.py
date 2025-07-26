@@ -64,20 +64,25 @@ class Charset:
         charset_height = charset.shape[0]
         print(f"Loaded charset of size: {charset_width}x{charset_height} / character size: {self.char_width}x{self.char_height}")
 
+        self.load_metadata(filename)
+        print(f"length: {len(self.hex_codes)}")
         # Slice up the charset image into individual character blocks
         for y in range(0, charset_height, self.char_height):
             for x in range(0, charset_width, self.char_width):
                 img = charset[y:y + self.char_height, x:x + self.char_width]
-                new_char = Character(img, len(self.chars))
+                idx = len(self.chars)
+                new_char = Character(img, idx, self.hex_codes[idx])
 
                 # First character made of all white pixels, keep track of it, so we dont end up with duplicates
                 if new_char.is_full():
                     if self.full_char.index is None:
-                        self.full_char.index = len(self.chars)
+                        self.full_char.index = idx
+                        self.full_char.code = new_char.code
                         self.chars.append(new_char)
                 elif new_char.is_empty(): # First character made of all black pixels, keep track of it
                     if self.empty_char.index is None:
-                        self.empty_char.index = len(self.chars)
+                        self.empty_char.index = idx
+                        self.empty_char.code = new_char.code
                         self.chars.append(new_char)
                 else:
                     self.chars.append(new_char)
@@ -109,7 +114,6 @@ class Charset:
 
         print(f"{len(self.chars)} total characters loaded")
 
-        self.load_metadata(filename)
 
         return
 
@@ -120,6 +124,8 @@ class Charset:
             with open(json_file, 'r') as file:
                 all_json = json.load(file)
                 self.hex_codes = all_json["hex_codes"]
+                if all_json["inverted_included"]:
+                    self.hex_codes = self.hex_codes + self.hex_codes
         else:
             print(f"No metadata file {json_file} found")
 

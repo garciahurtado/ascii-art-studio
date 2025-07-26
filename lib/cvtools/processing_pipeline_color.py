@@ -9,17 +9,18 @@
 This pipeline requires an ASCII B&W image as its input.
 """
 import cv2 as cv
-import numpy as np
 
 from color.palette_extractor import PaletteExtractor
 from . import color_filters
 from .processing_pipeline import ProcessingPipeline
 
 class ProcessingPipelineColor(ProcessingPipeline):
+    def __init__(self):
+        self.extractor = PaletteExtractor()
+
     def run(self, input_image):
         self.original = input_image
         self.color = self.original
-        # self.extractor = PaletteExtractor()
 
 
         #image = self._run_resize_with_padding(input_image)

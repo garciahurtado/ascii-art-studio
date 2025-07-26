@@ -123,16 +123,29 @@ class ProcessingPipeline():
 
         # Use ASCII as a mask for foreground colors
         self.ascii = cv.cvtColor(self.ascii, cv.COLOR_GRAY2BGR)
-        fg_ascii = cv.bitwise_and(self.ascii, fg_colors_big)
+        fg_color = cv.bitwise_and(self.ascii, fg_colors_big)
 
         # Use ASCII as a mask for background colors
         self.ascii_inv = cv.cvtColor(self.ascii_inv, cv.COLOR_GRAY2BGR)
-        bg_ascii = cv.bitwise_and(self.ascii_inv, bg_colors_big)
+        bg_color = cv.bitwise_and(self.ascii_inv, bg_colors_big)
 
-        self.color_ascii = cv.bitwise_or(bg_ascii, fg_ascii)
+        self.color_ascii = cv.bitwise_or(bg_color, fg_color)
+
+        # Convert back from CV BGR
+        true_bg_colors = cv.cvtColor(self.bg_colors, cv.COLOR_BGR2RGB)
+        true_fg_colors = cv.cvtColor(self.fg_colors, cv.COLOR_BGR2RGB)
+
+        # save the colors in the blocks of the converter
+        for row_idx in range(len(self.converter.match_char_map)):
+            row = self.converter.match_char_map[row_idx]
+            for col_idx in range(len(row)):
+                block = row[col_idx]
+                block.bg_color = true_bg_colors[row_idx][col_idx]
+                block.fg_color = true_fg_colors[row_idx][col_idx]
+
         # self.color_ascii = color_filters.palettize(self.color_ascii, self.palette)
 
-        return bg_ascii
+        return bg_color
 
 
     def __run_block_colors(self, _):

@@ -6,10 +6,10 @@ from cvtools import size_tools as tools
 
 class Character:
     """
-    Represents a 2 bit character (1s and 0s)
+    Represents a 2 bit character (1s and 0s) derived from an ASCII/UTF-8 character
     """
 
-    def __init__(self, img, index=None):
+    def __init__(self, img, index=None, code=None):
         self.img = img
 
         # Save downsampled pixel grayscale versions of the character img, for use in candidate selection
@@ -20,6 +20,7 @@ class Character:
 
         self.hash = None
         self.is_inverted = False
+        self.code = code
 
         self.height, self.width = img.shape[0], img.shape[1]
 

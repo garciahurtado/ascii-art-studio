@@ -81,7 +81,8 @@ class NeuralAsciiConverterPytorch(AsciiConverter):
                 character = characters[char_index]
                 output_image[y:y + char_height, x:x + char_width] = character.img
                 self.candidate_chars[row][col] = [character]
-                self.match_char_map[row][col] = Block(character)
+                new_block = Block(character)
+                self.match_char_map[row][col] = new_block
 
                 char_index += 1
 
@@ -108,7 +109,7 @@ class NeuralAsciiConverterPytorch(AsciiConverter):
         return model(images)
 
     def convert_to_blocks(self, input_image):
-        """Slice up the B&W input image into blocks and reshape into TF required format"""
+        """Slice up the B&W input image into blocks and reshape into required format"""
 
         img_blocks = tools.as_blocks(input_image, (self.char_height, self.char_width))
         img_blocks = img_blocks.astype(np.float32)
