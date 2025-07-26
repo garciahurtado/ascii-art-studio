@@ -7,6 +7,7 @@ resources/screenshots/*
 __pycache__/
 *.py[cod]
 *$py.class
+*.exe
 
 # C extensions
 *.so
@@ -147,3 +148,4 @@ lib/datasets/**/data/
 
 # Web assets
 web/archive/
+web/static/
