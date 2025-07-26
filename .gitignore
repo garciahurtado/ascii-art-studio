@@ -13,24 +13,17 @@ __pycache__/
 
 # Distribution / packaging
 .Python
-build/
 develop-eggs/
-dist/
-downloads/
 eggs/
 .eggs/
 lib64/
-parts/
 sdist/
-var/
 wheels/
 share/python-wheels/
 *.egg-info/
 .installed.cfg
 *.egg
 MANIFEST
-
-#
 
 # PyInstaller
 #  Usually these files are written by a python script from a template
@@ -118,8 +111,6 @@ venv/
 ENV/
 env.bak/
 
-#
-
 # mypy
 .mypy_cache/
 .dmypy.json
@@ -150,3 +141,9 @@ cython_debug/
 /lib/datasets/ascii_c64/data/new/
 */data/train/
 */data/test/
+
+# Data files
+lib/datasets/**/data/
+
+# Web assets
+web/archive/
