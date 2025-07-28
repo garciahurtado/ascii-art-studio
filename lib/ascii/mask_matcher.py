@@ -2,7 +2,7 @@ import os
 
 import cv2 as cv
 
-from ascii import AsciiMatcher
+from ascii.ascii_matcher import AsciiMatcher
 
 class MaskMatcher(AsciiMatcher):
     MASK_DIR = os.path.dirname(__file__) + '/res/masks/'
@@ -106,9 +106,3 @@ class MaskMatcher(AsciiMatcher):
         diff = self.get_pixel_diff(masked_img, masked_char)
 
         return diff
-
-
-
-
-
-

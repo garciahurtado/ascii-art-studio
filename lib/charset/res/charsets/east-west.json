@@ -1,0 +1,7 @@
+{
+    "name": "east-west",
+    "char_width": 8,
+    "char_height": 8,
+    "inverted_included": false,
+    "num_chars": 323
+}

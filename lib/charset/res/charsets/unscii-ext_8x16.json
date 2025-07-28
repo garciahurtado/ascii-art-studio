@@ -1,0 +1,7 @@
+{
+    "name": "unscii-ext",
+    "char_width": 8,
+    "char_height": 16,
+    "inverted_included": false,
+    "num_chars": 256
+}

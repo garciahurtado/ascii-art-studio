@@ -403,7 +403,10 @@ if __name__ == "__main__":
     palette = Palette(char_width=char_width, char_height=char_height)
     palette.load('atari-st.png')
 
-    converter = NeuralAsciiConverterPytorch(charset, 'ubuntu_mono-Mar24_01-42-34', 'ubuntu_mono', [8, 16],
+    # converter = NeuralAsciiConverterPytorch(charset, 'ubuntu_mono-Mar24_01-42-34', 'ubuntu_mono', [8, 16],
+    #                                         num_labels=num_chars)
+
+    converter = NeuralAsciiConverterPytorch(charset, 'ascii_c64-Mar17_03-27-13', 'ascii_c64', [8, 8],
                                             num_labels=num_chars)
 
     # converter = NeuralAsciiConverter(charset, '20211221-012355-UnsciiExt8x16', [char_width,char_height])

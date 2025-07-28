@@ -5,13 +5,18 @@ import torch
 from torch import nn
 from datetime import datetime
 
-models_path = os.path.normpath('models/')
+from const import INK_BLUE
+from debugger import printc
+
+models_path = os.path.abspath('../models/')
 def load_model(dataset, filename, num_labels):
-    filename = os.path.join(models_path, dataset, filename)
-    checkpoint = torch.load(filename + ".pt")
+    base_filename = os.path.join(models_path, dataset, filename)
+    filename = base_filename + ".pt"
+    printc(f"Loading Pytorch model from {filename}", INK_BLUE)
+    checkpoint = torch.load(filename)
 
     # Load the source code of your custom model
-    with open(filename + ".py", 'r') as f:
+    with open(base_filename + ".py", 'r') as f:
         model_code = f.read()
 
     # Create a module from the source code

@@ -1,14 +1,8 @@
 import math
 
 import numpy as np
-import torchvision
-from matplotlib import pyplot as plt
-from imblearn.over_sampling import SMOTE
-import torchmetrics
 import os
 import sys
-from datetime import datetime
-from torchmetrics import Precision, Recall, F1Score
 
 from torch.utils.data import Subset
 
@@ -24,9 +18,6 @@ import torch
 import torch.optim as optim
 import torch.nn as nn
 
-from datasets.ascii_amstrad_cpc.ascii_amstrad_cpc import AsciiAmstradCPC
-from datasets.ascii_c64.ascii_c64 import AsciiC64
-from datasets.unscii_8x8 import Unscii8x8
 from datasets.ubuntu_mono import UbuntuMono
 from net.ascii_classifier_network import AsciiClassifierNetwork
 from performance_monitor import PerformanceMonitor

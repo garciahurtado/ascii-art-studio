@@ -8,6 +8,10 @@ from cvtools.processing_pipeline_color import ProcessingPipelineColor
 
 
 def convert_image(image_path, output_path, charset, img_height=None, img_width=None):
+    """"
+    This converter / encoder takes a single image as input and converts it to a CPEG file.
+    Note: This encoder currently hardcodes the character size to 8x16
+    """
     image = cv.imread(image_path)
     image = cv.cvtColor(image, cv.COLOR_RGB2BGR)
 

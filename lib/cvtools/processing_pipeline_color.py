@@ -6,7 +6,7 @@
 - Use both color images (FG and BG) to extract limited perceptual palette (using Kmeans)
 - Apply palette to the color frames and return them both combined into one
 
-This pipeline requires an ASCII B&W image as its input.
+This pipeline requires an ASCII B&W image as its input (is that true?)
 """
 import cv2 as cv
 
@@ -22,9 +22,8 @@ class ProcessingPipelineColor(ProcessingPipeline):
         self.original = input_image
         self.color = self.original
 
-
-        #image = self._run_resize_with_padding(input_image)
-        image = self._run_brightness_saturation(input_image)
+        image = self._run_resize_with_padding(input_image)
+        # image = self._run_brightness_saturation(input_image)
         image = self._run_create_grayscale(image)
         image = self._run_create_high_contrast(image)
         image = self._run_denoise(image)

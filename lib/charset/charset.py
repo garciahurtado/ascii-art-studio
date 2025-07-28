@@ -8,6 +8,7 @@ from collections import defaultdict
 
 import unicodedata
 
+from debugger import printc
 from .character import Character
 
 
@@ -65,13 +66,16 @@ class Charset:
         print(f"Loaded charset of size: {charset_width}x{charset_height} / character size: {self.char_width}x{self.char_height}")
 
         self.load_metadata(filename)
-        print(f"length: {len(self.hex_codes)}")
+        if self.hex_codes is not None:
+            print(f"length: {len(self.hex_codes)}")
+
         # Slice up the charset image into individual character blocks
         for y in range(0, charset_height, self.char_height):
             for x in range(0, charset_width, self.char_width):
                 img = charset[y:y + self.char_height, x:x + self.char_width]
                 idx = len(self.chars)
-                new_char = Character(img, idx, self.hex_codes[idx])
+                hex_code = self.hex_codes[idx] if self.hex_codes and idx < len(self.hex_codes) else None
+                new_char = Character(img, idx, hex_code)
 
                 # First character made of all white pixels, keep track of it, so we dont end up with duplicates
                 if new_char.is_full():
@@ -123,14 +127,18 @@ class Charset:
         if os.path.exists(json_file):
             with open(json_file, 'r') as file:
                 all_json = json.load(file)
-                self.hex_codes = all_json["hex_codes"]
-                if all_json["inverted_included"]:
-                    self.hex_codes = self.hex_codes + self.hex_codes
+                if "hex_codes" in all_json.keys():
+                    self.hex_codes = all_json["hex_codes"]
+                    if all_json["inverted_included"]:
+                        self.hex_codes = self.hex_codes + self.hex_codes
         else:
-            print(f"No metadata file {json_file} found")
-
+            printc(f"!! No metadata file {json_file} found !!")
 
     def print_unicode_chars(self, show_hex=False):
+        if not self.hex_codes:
+            printc("!! No hex codes available for this charset !!")
+            return
+
         total = 0
 
         for i, hex_code in enumerate(self.hex_codes, 1):
@@ -145,7 +153,7 @@ class Charset:
                 if total % 16 == 0:
                     print()
             except ValueError:
-                print(f"Invalid hex code: {hex_code}", end="\t")
+                printc(f"Invalid hex code: {hex_code}", end="\t")
 
                 if i % 16 == 0:
                     print()

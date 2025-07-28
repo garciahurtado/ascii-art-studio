@@ -8,7 +8,7 @@ import torch.optim as optim
 import torch.nn as nn
 from torch.utils.tensorboard import SummaryWriter
 
-from network import ClassifierNetwork
+from net.cifar10_network import ClassifierNetwork
 
 models_path = './models/'
 

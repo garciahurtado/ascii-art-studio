@@ -148,7 +148,7 @@ class ProcessingPipeline():
         return bg_color
 
 
-    def __run_block_colors(self, _):
+    def _run_block_colors(self, _):
         # Resize to img / character-size since we only need one color per 8x8 block
         dims = (int(self.img_width / self.char_width), int(self.img_height / self.char_height))
         flat_colors = cv.resize(self.color, dims, interpolation=cv.INTER_LANCZOS4)

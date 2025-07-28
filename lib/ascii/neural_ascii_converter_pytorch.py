@@ -9,12 +9,13 @@ from charset import Charset
 from cvtools import size_tools as tools
 from ascii.block import Block
 import torch
+
 from net.ascii_classifier_network import AsciiClassifierNetwork
 from pytorch import model_manager
 
 this_dir = os.path.dirname(os.path.realpath(__file__))
+print("Neural ASCII Converter Pytorch module loaded from: {}".format(this_dir))
 MODELS_DIR = os.path.join(this_dir, "..\..\\", "models\\")
-
 
 def get_device():
     if torch.cuda.is_available():
@@ -28,6 +29,7 @@ def get_device():
 
 
 class NeuralAsciiConverterPytorch(AsciiConverter):
+    model: AsciiClassifierNetwork = None
 
     def __init__(self, charset: Charset, model_filename, model_charset, charsize, num_labels=None):
         self.charset: Charset = charset
@@ -38,7 +40,7 @@ class NeuralAsciiConverterPytorch(AsciiConverter):
         self.load_model(model_charset, model_filename, num_labels)
 
     def load_model(self, charset_name, filename, num_labels):
-        # Load ML model source class and weights
+        # Load ML model source code and pretrained weights from model file
         self.model = model_manager.load_model(charset_name, filename, num_labels)
         self.model = self.model.cuda()
 
@@ -122,7 +124,6 @@ class NeuralAsciiConverterPytorch(AsciiConverter):
         threshold = 2
 
         for char, block in zip(charlist, images):
-            # breakpoint()
             if (tools.is_almost_full(block, threshold)):
                 charlist_out.append(self.charset.full_char)
             elif (tools.is_almost_empty(block, threshold)):
