@@ -13,7 +13,6 @@ h1 .title-converter-image-mode {
     background-position: left 0px top 8px;
     background-size: 100% auto;
     image-rendering: pixelated;
-    transition: background-image 0.2s ease-in-out;
 }
 /* Drop Zone Styling */
 .drop-zone {

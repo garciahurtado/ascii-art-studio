@@ -2,6 +2,7 @@ class AsciiMoviePlayer {
     constructor(ctx, video_file, char_width, char_height) {
         var pixel_zoom = 2;
         var scale = pixel_zoom * 2
+        this.scale = scale;
 
         var doc = ctx.canvas.ownerDocument;
         this.ctx = ctx;
@@ -78,7 +79,7 @@ class AsciiMoviePlayer {
     /**
      * Given a list of decoded blocks, including ASCII character codes and colors, draw them on the visible canvas
      */
-    async drawFrame(frame, scale){
+    async drawFrame(frame){
         var start_frame_time = performance.now();
 
         this.total_cols = frame.cols;
@@ -357,11 +358,11 @@ class AsciiMoviePlayer {
     /**
      * Renders a single frame, passed in the CPEG format
      */
-    async showFrame(frame, scale){
+    async showFrame(frame){
         var start_time = performance.now();
         this.palette = frame.palette;
 
-        await this.drawFrame(frame, scale);
+        await this.drawFrame(frame);
         this.frame_counter.value = this.runner.frame_index + 1; // Frame numbers start at 1 in the UI
         this.updatePlayhead(this.runner.frame_index);
         this.all_frames_time += performance.now() - start_time;
@@ -407,7 +408,7 @@ class AsciiMoviePlayer {
         var percent = x / total_width;
         var frame_num = this.total_frames * percent;
 
-        this.goToFrame(Math.round(frame_num));
+        this.goToFrame(Math.round(frame_num), this.scale);
     }
 
     goToFrame(frame_num){
@@ -420,7 +421,7 @@ class AsciiMoviePlayer {
         this.updatePlayhead(frame_num);
 
         if(!this.runner.running){
-            this.showFrame(this.runner.getCurrentFrame(), scale);
+            this.showFrame(this.runner.getCurrentFrame());
         }
     }
 

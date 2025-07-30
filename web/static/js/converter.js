@@ -441,7 +441,7 @@ function initGlitchEffect() {
     if (!titleElement) return;
 
     const numFrames = 9; // Frames 00-08
-    const baseFrameDuration = 80; // Base duration in milliseconds
+    const baseFrameDuration = 70; // Base duration in milliseconds
 
     let isGlitching = false;
     let glitchTimeout;
@@ -472,8 +472,8 @@ function initGlitchEffect() {
         // Show the first frame immediately
         showFrame(currentFrame);
 
-        // Set up the glitch interval (6-8 frames over 1-2 seconds)
-        const totalFrames = 4 + Math.floor(Math.random() * 22); // 12-20 frames
+        // Set up the total number of frames
+        const totalFrames = 3 + Math.floor(Math.random() * 17); // 3-20 frames
 
         const showNextFrame = () => {
             if (frameCount >= totalFrames - 1) {
@@ -485,7 +485,7 @@ function initGlitchEffect() {
                 showFrame(false);
 
                 // Schedule the next glitch sequence
-                const nextGlitchDelay = 1000 + Math.random() * 5000; // 4-7 seconds
+                const nextGlitchDelay = 2000 + Math.random() * 7000; // 2-9 seconds
                 setTimeout(playGlitchSequence, nextGlitchDelay);
                 return;
             }
@@ -496,7 +496,7 @@ function initGlitchEffect() {
             showFrame(currentFrame);
 
             // Calculate random delay for the next frame
-            randBaseDelay = Math.floor(baseFrameDuration * (Math.random()+0.2));
+            randBaseDelay = Math.floor(baseFrameDuration * (Math.random()+0.4));
             let randomDelay = randBaseDelay + Math.floor(Math.random() * baseFrameDuration * 2.5);
 
             // Schedule next frame
@@ -509,7 +509,7 @@ function initGlitchEffect() {
 
     // Schedule the next glitch
     const scheduleNextGlitch = () => {
-        const delay = 4000 + Math.random() * 7000; // 8-16 seconds frequency
+        const delay = 3000 + Math.random() * 7000; // 8-16 seconds frequency
         clearTimeout(glitchTimeout);
         glitchTimeout = setTimeout(playGlitchSequence, delay);
     };
