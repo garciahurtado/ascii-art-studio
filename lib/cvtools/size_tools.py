@@ -2,61 +2,83 @@ import numpy as np
 import cv2 as cv
 from numpy.lib.stride_tricks import as_strided as as_strided
 
-def resize_with_padding(img, size, padColor=0):
-
+def resize_with_padding(img, size, padColor=0, block_size=8):
+    """
+    Resize image with padding to maintain aspect ratio and ensure dimensions are multiples of block_size.
+    
+    Args:
+        img: Input image
+        size: Target size as (width, height)
+        padColor: Color to use for padding
+        block_size: Size of character blocks (default 8x8)
+        
+    Returns:
+        Resized and padded image with dimensions that are multiples of block_size
+    """
     height, width = img.shape[:2]
     frame_width, frame_height = size
-
+    
+    # Ensure target dimensions are multiples of block_size
+    frame_width = (frame_width // block_size) * block_size
+    frame_height = (frame_height // block_size) * block_size
+    
     # interpolation method
-    if height > frame_height or width > frame_width: # shrinking image
+    if height > frame_height or width > frame_width:  # shrinking image
         interp = cv.INTER_AREA
-    else: # stretching image
+    else:  # stretching image
         interp = cv.INTER_CUBIC
 
     # aspect ratio of image
-    img_aspect = width/height
-    frame_aspect = frame_width/frame_height
+    img_aspect = width / height
+    frame_aspect = frame_width / frame_height
 
     # compute scaling and pad sizing
     if img_aspect > frame_aspect:
-        ''' We'll need horizontal bars'''
+        # Horizontal bars
         new_width = frame_width
-        new_height = np.floor(frame_width/img_aspect).astype(int)
-
-        pad_horizontal = np.floor((frame_height - new_height) / 2).astype(int)
+        new_height = max(block_size, (frame_width // img_aspect) // block_size * block_size)
+        pad_horizontal = (frame_height - new_height) // 2
         pad_vertical = 0
-
-        # Deal with images with "odd" heights (ie: star wars poster)
-        total_height = (pad_horizontal * 2) + new_height
-        if total_height < frame_height:
-            diff = int(frame_height - total_height)
-            pad_horizontal += diff
-            new_height -= diff
-
+        
+        # Ensure padding is even and dimensions are correct
+        pad_horizontal = (pad_horizontal // block_size) * block_size
+        new_height = frame_height - 2 * pad_horizontal
+        
     elif img_aspect < frame_aspect:
-        ''' We'll need vertical bars'''
+        # Vertical bars
         new_height = frame_height
-        new_width = np.round(new_height * img_aspect).astype(int)
-        pad_vertical = np.round((frame_width - new_width) / 2).astype(int)
+        new_width = max(block_size, (frame_height * img_aspect) // block_size * block_size)
+        pad_vertical = (frame_width - new_width) // 2
         pad_horizontal = 0
-
-        total_width = (pad_vertical * 2) + new_width
-        if int(total_width) < int(frame_width):
-            diff = int(frame_width - total_width)
-            pad_vertical += diff
-            new_width -= diff
-
-    else: # square image
+        
+        # Ensure padding is even and dimensions are correct
+        pad_vertical = (pad_vertical // block_size) * block_size
+        new_width = frame_width - 2 * pad_vertical
+    else:  # square image
         new_height, new_width = frame_height, frame_width
         pad_horizontal, pad_vertical = 0, 0
 
     # set padding color
     if len(img.shape) == 3 and not isinstance(padColor, (list, tuple, np.ndarray)):
-        padColor = [padColor]*3
+        padColor = [padColor] * 3
 
     # scale and pad
-    scaled_img = cv.resize(img, (new_width, new_height), interpolation=interp)
-    scaled_img = cv.copyMakeBorder(scaled_img, pad_horizontal, pad_horizontal, pad_vertical, pad_vertical, borderType=cv.BORDER_CONSTANT, value=padColor)
+    scaled_img = cv.resize(img, (int(new_width), int(new_height)), interpolation=interp)
+    scaled_img = cv.copyMakeBorder(
+        scaled_img,
+        int(pad_horizontal), int(pad_horizontal),
+        int(pad_vertical), int(pad_vertical),
+        borderType=cv.BORDER_CONSTANT,
+        value=padColor
+    )
+    
+    # Final check to ensure dimensions are correct
+    h, w = scaled_img.shape[:2]
+    if h % block_size != 0 or w % block_size != 0:
+        # If we still have incorrect dimensions, do a final crop
+        h = (h // block_size) * block_size
+        w = (w // block_size) * block_size
+        scaled_img = scaled_img[:h, :w]
 
     return scaled_img
 

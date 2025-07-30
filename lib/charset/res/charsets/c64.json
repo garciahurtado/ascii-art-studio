@@ -2,6 +2,6 @@
     "name": "c64",
     "char_width": 8,
     "char_height": 8,
-    "inverted_included": false,
-    "num_chars": 256
+    "inverted_included": true,
+    "num_chars": 512
 }

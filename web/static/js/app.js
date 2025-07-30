@@ -3,7 +3,7 @@ window.onload = function() {
     var ctx=el.getContext('2d');
     var char_width = 8;
     var char_height = 8;
-    var player = new AsciiMoviePlayer(ctx, "charpeg/video_stream.cpeg" , char_width, char_height);
+    var player = new AsciiMoviePlayer(ctx, "charpeg/video_stream.ragnarok.cpeg" , char_width, char_height);
 
     player.play_button = document.getElementById("play_button");
     player.pause_button = document.getElementById("pause_button");

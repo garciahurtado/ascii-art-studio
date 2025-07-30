@@ -2,6 +2,8 @@ import os
 import sys
 import traceback
 import logging
+
+import cv2
 import numpy as np
 from datetime import datetime
 from pathlib import Path
@@ -12,6 +14,8 @@ from flask import Flask, request, jsonify, send_from_directory, render_template_
 
 # Create the Flask app here so that the decorators can be used
 app = Flask(__name__, static_folder='static')
+
+CONVERT_TO_BGR = False
 
 # Set up logging
 logging.basicConfig(
@@ -27,15 +31,17 @@ logger = logging.getLogger(__name__)
 # Import the ASCII converter and processing pipeline
 from ascii.neural_ascii_converter_pytorch import NeuralAsciiConverterPytorch
 from charset import Charset
-from cvtools.processing_pipeline_ascii import ProcessingPipelineAscii
 from cvtools.processing_pipeline_color import ProcessingPipelineColor
 
 # Initialize the converter with C64 charset
 CHAR_WIDTH, CHAR_HEIGHT = 8, 8
 CHARSET_NAME = 'c64.png'
-MODEL_FILENAME = 'ascii_c64-Mar17_03-27-13'
+MODEL_FILENAME = 'ascii_c64-Mar17_21-33-46'
 MODEL_CHARSET = 'ascii_c64'
-NUM_LABELS = 254
+
+# CHARSET_NAME = 'amstrad-cpc.png'
+# MODEL_FILENAME = 'AsciiAmstradCPC-Mar06_23-14-37'
+# MODEL_CHARSET = 'AsciiAmstradCPC'
 
 def init_converter():
     """Initialize the ASCII converter with C64 settings.
@@ -47,6 +53,7 @@ def init_converter():
         # Load the C64 charset
         charset = Charset(CHAR_WIDTH, CHAR_HEIGHT)
         charset.load(CHARSET_NAME, invert=False)
+        NUM_LABELS = len(charset.chars)
         
         # Initialize the converter with C64 model
         converter = NeuralAsciiConverterPytorch(
@@ -154,6 +161,16 @@ def convert_image():
         if upload.filename == '':
             return jsonify({'error': 'No selected file'}), 400
         
+        # Get character dimensions from form data with defaults
+        try:
+            char_cols = int(request.form.get('char_cols', 80))
+            char_rows = int(request.form.get('char_rows', 40))
+            # Ensure minimum values
+            char_cols = max(10, min(200, char_cols))
+            char_rows = max(10, min(200, char_rows))
+        except (ValueError, TypeError):
+            char_cols, char_rows = 80, 40  # Default values if parsing fails
+        
         # Validate file extension
         filename = upload.filename.lower()
         if not (filename.endswith(('.png', '.jpg', '.jpeg'))):
@@ -166,19 +183,28 @@ def convert_image():
         try:
             # Open and process the image
             with Image.open(temp_path) as img:
-                # Convert to RGB if needed
-                if img.mode != 'RGB':
-                    img = img.convert('RGB')
-                
                 # Convert to numpy array (BGR format expected by OpenCV)
-                img_np = np.array(img)[:, :, ::-1]  # RGB to BGR
+                if CONVERT_TO_BGR:  # BGR:
+                    img_np = np.array(img)[:, :, ::-1]  # RGB to BGR
+                else:
+                    img_np = cv2.cvtColor(np.array(img), cv2.COLOR_RGB2BGR)
                 
-                # Set pipeline dimensions based on input image
-                pipeline_ascii.img_width = img.width
-                pipeline_ascii.img_height = img.height
+                # Calculate target dimensions based on character grid
+                char_size = 8  # Character block size
+                target_width = char_cols * char_size
+                target_height = char_rows * char_size
+                
+                # Set pipeline dimensions
+                pipeline_ascii.img_width = target_width
+                pipeline_ascii.img_height = target_height
+                pipeline_ascii.char_width = char_size
+                pipeline_ascii.char_height = char_size
 
                 # Run the processing pipeline
                 color_img = pipeline_ascii.run(img_np)
+
+                # Convert back to RGB for web display
+                color_img = cv2.cvtColor(color_img, cv2.COLOR_BGR2RGB)
                 
                 # Convert the color image to bytes
                 img_pil = Image.fromarray(color_img)

@@ -8,8 +8,11 @@ import cv2 as cv
 import numpy as np
 import cvtools.contrast_filters as filters
 
-"""Uses a Charset object in order to convert a given image into an ASCII version"""
+"""Uses a Charset object in order to convert a given image into an ASCII version manually (ie: no
+machine learning)
 
+These converted images can then be used for training a machine learning model
+"""
 
 class AsciiConverter:
 

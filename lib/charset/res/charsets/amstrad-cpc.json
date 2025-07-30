@@ -1,7 +1,7 @@
 {
-    "name": "amstrad-cpc_8x8",
+    "name": "amstrad-cpc",
     "char_width": 8,
     "char_height": 8,
-    "inverted_included": false,
+    "inverted_included": true,
     "num_chars": 506
 }

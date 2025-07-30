@@ -78,8 +78,9 @@ class ProcessingPipeline():
 
     def _run_create_grayscale(self, input_img):
         grayscale = input_img.copy()
-        # grayscale = colors.brightness_contrast(grayscale, 20, 20)
-        self.grayscale = cv.cvtColor(grayscale, cv.COLOR_BGR2GRAY)
+        grayscale = cv.cvtColor(grayscale, cv.COLOR_BGR2GRAY)
+        grayscale = color_filters.brightness_contrast(grayscale, 20, 20)
+        self.grayscale = grayscale
 
         return input_img
 
@@ -110,7 +111,6 @@ class ProcessingPipeline():
 
     def _run_extract_colors_from_mask(self, mask_img):
         char_size = [self.char_width, self.char_height]
-        inv_contrast = cv.bitwise_not(self.contrast_img)
         self.fg_colors = color_filters.extract_colors_from_mask(self.color, mask_img, self.contrast_img, char_size)
         self.bg_colors = color_filters.extract_colors_from_mask(self.color, mask_img, self.contrast_img, char_size, invert=True)
 
