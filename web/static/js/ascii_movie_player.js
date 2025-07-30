@@ -312,47 +312,111 @@ class AsciiMoviePlayer {
     async loadVideoStream(url){
         var req = new XMLHttpRequest();
         var player = this;
+
         req.addEventListener("loadend", async function (e) {
-            if (this.response) {
-                player.video_stream = this.response;
-                player.parseVideoStream();
+            try {
+                if (this.status >= 200 && this.status < 300 && this.response) {
+                    player.video_stream = this.response;
+                    await player.parseVideoStream();
+                } else {
+                    const error = new Error(`Failed to load video: ${this.statusText || 'Unknown error'}`);
+                    error.status = this.status;
+                    throw error;
+                }
+            } catch (error) {
+                console.error('Error in loadVideoStream:', error);
+                // Rethrow to be caught by the global error handler
+                setTimeout(() => { throw error; });
             }
         });
-        req.open("GET", url);
-        req.responseType = "arraybuffer";
-        req.send();
+
+        req.onerror = function() {
+            const error = new Error(`Network error while loading video: ${url}`);
+            console.error(error);
+            setTimeout(() => { throw error; });
+        };
+
+        req.onabort = function() {
+            const error = new Error('Video loading was aborted');
+            console.error(error);
+            setTimeout(() => { throw error; });
+        };
+
+        try {
+            req.open("GET", url);
+            req.responseType = "arraybuffer";
+            req.send();
+        } catch (error) {
+            console.error('Error sending video request:', error);
+            setTimeout(() => { throw error; });
+        }
     }
 
     async parseVideoStream(){
-        var start_time = performance.now();
-        this.all_frames_time = 0;
-        var frame_num = 0;
+        try {
+            var start_time = performance.now();
+            this.all_frames_time = 0;
 
-        var all_bytes = new Uint8Array(this.video_stream);
-        var header = this.decoder.decodeStreamHeader(all_bytes);
-        this.total_frames = header.num_frames;
-        var all_frames = this.decoder.readAllFrames(all_bytes, this.total_frames, header.char_width, header.char_height);
+            if (!this.video_stream || !this.video_stream.byteLength) {
+                throw new Error('No video data available to parse');
+            }
 
-        this.runner = new FpsRunner(this.fps);
-        this.runner.frames = all_frames;
-        self = this;
+            var all_bytes = new Uint8Array(this.video_stream);
+            var header = this.decoder.decodeStreamHeader(all_bytes);
 
-        this.runner.callback = this.showFrame.bind(this);
+            if (!header || !header.num_frames) {
+                throw new Error('Invalid video header or no frames found');
+            }
 
-        requestAnimationFrame(function(){
-            self.runner.play();
-        });
+            this.total_frames = header.num_frames;
+            var all_frames = this.decoder.readAllFrames(all_bytes, this.total_frames, header.char_width, header.char_height);
 
-        this.runner.on_finish = function(){
-            self.stop();
-            var end_time = performance.now();
-            var elapsed = end_time - start_time;
-            console.log("*** All frames time: " + self.all_frames_time + "ms");
+            if (!all_frames || !all_frames.length) {
+                throw new Error('No frames could be decoded from the video');
+            }
 
-            var avg = self.all_frames_time / self.num_frames;
-            console.log("*** " + frame_num + " frames @ " + avg + "ms per frame");
-        };
+            this.runner = new FpsRunner(this.fps);
+            this.runner.frames = all_frames;
+            var self = this;
 
+            this.runner.callback = async (frame) => {
+                try {
+                    await this.showFrame(frame);
+                } catch (error) {
+                    console.error('Error in frame callback:', error);
+                    // Rethrow to be caught by the global error handler
+                    setTimeout(() => { throw error; });
+                }
+            };
+
+            requestAnimationFrame(function(){
+                try {
+                    self.runner.play();
+                } catch (error) {
+                    console.error('Error starting playback:', error);
+                    setTimeout(() => { throw error; });
+                }
+            });
+
+            this.runner.on_finish = function() {
+                try {
+                    self.stop();
+                    var end_time = performance.now();
+                    var elapsed = end_time - start_time;
+                    console.log("*** All frames time: " + self.all_frames_time + "ms");
+
+                    var avg = self.all_frames_time / self.total_frames;
+                    console.log("*** " + self.total_frames + " frames @ " + avg + "ms per frame");
+                } catch (error) {
+                    console.error('Error in on_finish:', error);
+                    setTimeout(() => { throw error; });
+                }
+            };
+        } catch (error) {
+            console.error('Error parsing video stream:', error);
+            // Rethrow to be caught by the global error handler
+            setTimeout(() => { throw error; });
+        }
     }
 
     /**

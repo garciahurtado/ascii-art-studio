@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <title>ASCII Format Image / Video Player</title>
     <script type="text/javascript" src="js/video_decoder.js"></script>
+    <script type="text/javascript" src="js/ui_utils.js"></script>
     <script type="text/javascript" src="js/ascii_movie_player.js"></script>
     <script type="text/javascript" src="js/video_frame.js"></script>
     <script type="text/javascript" src="js/palette_frame.js"></script>
@@ -43,9 +44,52 @@
             font-weight: bold;
             font-size: 18px;
         }
+        .file-selector {
+            margin-right: 15px;
+        }
+        #fileSelector {
+            padding: 8px 12px;
+            border-radius: 4px;
+            border: 1px solid #555;
+            background-color: #333;
+            color: white;
+            font-size: 14px;
+            cursor: pointer;
+            min-width: 200px;
+        }
+        #fileSelector:hover {
+            background-color: #444;
+        }
+        #fileSelector option {
+            background-color: #333;
+            padding: 8px;
+        }
+        /* Error message style */
+        .error-message {
+            position: fixed;
+            top: 1rem;
+            right: 1rem;
+            padding: 0.75rem 1.25rem;
+            margin-bottom: 1rem;
+            border: 1px solid transparent;
+            border-radius: 0.25rem;
+            color: #721c24;
+            background-color: #f8d7da;
+            border-color: #f5c6cb;
+            z-index: 1000;
+            max-width: 300px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            animation: slideIn 0.3s ease-out;
+        }
+
+        @keyframes slideIn {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
     </style>
 </head>
 <body>
+    <div id="errorContainer" style="display: none;"></div>
     <!-- Navigation Bar -->
     <nav class="nav-bar">
         <div class="logo">ASCII Art Studio</div>
@@ -75,6 +119,12 @@
             </div>
 
             <div class="controls">
+                <div class="file-selector">
+                    <select id="fileSelector" title="Select Video File">
+                        <option value="" disabled selected>Select a video...</option>
+                    </select>
+                </div>
+
                 <button id="start" title="Restart Video" class="large">first_page</button>
                 <button id="prev_frame" title="Previous Frame" class="large">chevron_left</button>
 
@@ -104,5 +154,31 @@
         <img id="charset" width="0" height="0"/>
     </div>
 
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Fetch available video files when the page loads
+            fetch('/api/videos')
+                .then(response => response.json())
+                .then(files => {
+                    const selector = document.getElementById('fileSelector');
+                    files.forEach(file => {
+                        const option = document.createElement('option');
+                        option.value = file.path;
+                        option.textContent = file.name;
+                        selector.appendChild(option);
+                    });
+                })
+                .catch(error => console.error('Error loading video files:', error));
+
+            // Handle file selection change
+            document.getElementById('fileSelector').addEventListener('change', function() {
+                const selectedFile = this.value;
+                if (selectedFile) {
+                    // Reload the player with the new file
+                    window.location.href = `player.html?file=${encodeURIComponent(selectedFile)}`;
+                }
+            });
+        });
+    </script>
 </body>
 </html>

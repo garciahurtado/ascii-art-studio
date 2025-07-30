@@ -1,9 +1,13 @@
 window.onload = function() {
+    // Get the selected file from URL parameters
+    const urlParams = new URLSearchParams(window.location.search);
+    const selectedFile = urlParams.get('file') || "charpeg/video_stream.ragnarok_short.cpeg";
+
     var el=document.getElementById("player");
     var ctx=el.getContext('2d');
     var char_width = 8;
     var char_height = 8;
-    var player = new AsciiMoviePlayer(ctx, "charpeg/video_stream.ragnarok_short.cpeg" , char_width, char_height);
+    var player = new AsciiMoviePlayer(ctx, selectedFile, char_width, char_height);
 
     player.play_button = document.getElementById("play_button");
     player.pause_button = document.getElementById("pause_button");

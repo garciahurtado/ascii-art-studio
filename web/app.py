@@ -235,6 +235,37 @@ def convert_image():
             except Exception as e:
                 logger.error(f"Error deleting temp file {temp_path}: {e}")
 
+@app.route('/api/videos')
+def list_videos():
+    """
+    List all available .cpeg video files in the charpeg directory.
+
+    Returns:
+        JSON response containing a list of video files with their names and paths
+    """
+    try:
+        # Define the directory containing video files
+        video_dir = os.path.join(app.static_folder, 'charpeg')
+
+        # Get all .cpeg files in the directory
+        video_files = []
+        for filename in os.listdir(video_dir):
+            if filename.endswith('.cpeg'):
+                # Create a user-friendly name by removing the extension and any path
+                name = os.path.splitext(filename)[0]
+                name = name.replace('_', ' ').title()
+
+                video_files.append({
+                    'name': name,
+                    'path': f'charpeg/{filename}'
+                })
+
+        return jsonify(video_files)
+
+    except Exception as e:
+        log_error(e, request)
+        return jsonify({'error': str(e)}), 500
+
 @app.route('/<path:path>')
 def serve_static(path):
     """Serve static files from the static directory."""
