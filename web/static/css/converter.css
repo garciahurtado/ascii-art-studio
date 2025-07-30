@@ -1,0 +1,262 @@
+/* Image Converter Styles */
+
+/* Title Glitches Styling */
+h1 .title-converter {
+    width: 224px;
+    height: 32px;
+    background: none;
+}
+
+h1 .title-converter-image-mode {
+    color: transparent; /* Hide text when in image mode */
+    background: url(/static/img/converter-ascii-00.png) no-repeat;
+    background-position: left 0px top 8px;
+    background-size: 100% auto;
+    image-rendering: pixelated;
+    transition: background-image 0.2s ease-in-out;
+}
+/* Drop Zone Styling */
+.drop-zone {
+    max-width: 250px;
+    border: 2px dashed #4a5568;
+    border-radius: 0.5rem;
+    transition: all 0.2s ease-in-out;
+    padding: 3rem;
+    margin-bottom: 1rem;
+    cursor: pointer;
+    text-align: center;
+}
+
+.drop-zone:hover,
+.drop-zone.drag-over {
+    border-color: #4299e1;
+    background-color: #333;
+}
+
+.drop-zone svg {
+    max-width: 100%;
+}
+
+/* ASCII Output Styling */
+.ascii-output {
+    font-family: monospace;
+    white-space: pre;
+    line-height: 1;
+    letter-spacing: 0.1em;
+    margin: 0;
+    padding: 0;
+}
+
+/* Navigation Bar */
+.nav-bar {
+    background-color: #333;
+    padding: 10px 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+}
+
+.nav-links {
+    display: flex;
+    gap: 20px;
+}
+
+.nav-links a {
+    color: white;
+    text-decoration: none;
+    font-size: 16px;
+    padding: 8px 12px;
+    border-radius: 4px;
+    transition: background-color 0.3s;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.nav-links a:hover {
+    background-color: #555;
+}
+
+.nav-links a.active {
+    background-color: #4CAF50;
+}
+
+.logo {
+    color: white;
+    font-weight: bold;
+    font-size: 18px;
+}
+
+/* Button Styling */
+.btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.5rem 1rem;
+    border-radius: 0.375rem;
+    font-weight: 500;
+    transition: all 0.2s;
+    cursor: pointer;
+}
+
+.btn-primary {
+    background-color: #3b82f6;
+    color: white;
+    border: none;
+}
+
+.btn-primary:hover {
+    background-color: #2563eb;
+}
+
+.btn-secondary {
+    background-color: #e5e7eb;
+    color: #1f2937;
+    border: 1px solid #d1d5db;
+}
+
+.btn-secondary:hover {
+    background-color: #d1d5db;
+}
+
+/* Loading Animation */
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+.animate-spin {
+    animation: spin 1s linear infinite;
+}
+
+/* Image container styles */
+.image-container {
+    position: relative;
+    width: 100%;
+    max-width: 100%;
+    overflow: hidden;
+    margin: 0 auto;
+    background: #f8fafc;
+    border-radius: 0.5rem;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+}
+
+.original-image,
+.converted-image {
+    width: 100%;
+    height: auto;
+    display: block;
+    border-radius: 0.5rem;
+}
+
+.original-image {
+    /* Original image stays in place */
+    position: relative;
+    z-index: 1;
+}
+
+.converted-image {
+    /* Position the converted image directly over the original */
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 2;
+    /* Start with the top 100% hidden (revealing from top) */
+    clip-path: inset(0 0 100% 0);
+    transition: clip-path 1.5s ease-in-out;
+    image-rendering: pixelated;
+}
+
+.converted-image.visible {
+    /* When visible, show the full image by adjusting the clip path */
+    clip-path: inset(0 0 0 0);
+}
+
+/* Loading state for the converted image */
+@keyframes shimmer {
+    0% { background-position: -1000px 0; }
+    100% { background-position: 1000px 0; }
+}
+
+.loading-placeholder {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+    background-size: 1000px 100%;
+    animation: shimmer 2s infinite linear;
+    border-radius: 0.5rem;
+    z-index: 3; /* Above both images while loading */
+}
+
+/* Action buttons */
+.action-buttons {
+    margin-top: 1.5rem;
+    text-align: center;
+    opacity: 0;
+    transform: translateY(10px);
+    transition: opacity 0.3s ease-out, transform 0.3s ease-out;
+}
+
+.action-buttons.visible {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+/* Result Section */
+.result-container {
+    background-color: #1a202c;
+    border-radius: 0.5rem;
+    padding: 1rem;
+    margin-top: 1rem;
+    overflow: auto;
+    max-height: 60vh;
+}
+
+.preview-container {
+    background-color: #7a7a72;
+    border: 1px solid #a6a6a3;
+    border-radius: 0.375rem;
+    padding: 1rem;
+    margin-top: 1rem;
+    font-family: monospace;
+    white-space: pre;
+    line-height: 1;
+}
+
+
+/* Utility Classes */
+.hidden {
+    display: none;
+}
+
+.text-center {
+    text-align: center;
+}
+
+.mb-4 {
+    margin-bottom: 1rem;
+}
+
+.mt-4 {
+    margin-top: 1rem;
+}
+
+/* Responsive Adjustments */
+@media (max-width: 640px) {
+    .nav-links {
+        gap: 10px;
+    }
+
+    .nav-links a {
+        padding: 6px 10px;
+        font-size: 14px;
+    }
+
+    .drop-zone {
+        padding: 1.5rem;
+    }
+}

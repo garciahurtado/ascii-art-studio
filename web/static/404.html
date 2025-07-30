@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>404 - Page Not Found</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Source+Code+Pro:wght@400;600&display=swap');
+
+        :root {
+            --primary-color: #2563eb;
+            --bg-color: #0f172a;
+            --text-color: #e2e8f0;
+            --error-color: #ef4444;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Source Code Pro', monospace;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            line-height: 1.6;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            padding: 2rem;
+        }
+
+        .container {
+            max-width: 600px;
+            padding: 2rem;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            background-color: rgba(15, 23, 42, 0.8);
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        }
+
+        h1 {
+            font-size: 8rem;
+            color: var(--error-color);
+            margin-bottom: 1rem;
+            line-height: 1;
+            text-shadow: 0 0 10px rgba(239, 68, 68, 0.5);
+        }
+
+        h2 {
+            font-size: 1.5rem;
+            margin-bottom: 1.5rem;
+            color: var(--primary-color);
+        }
+
+        p {
+            margin-bottom: 2rem;
+            color: #94a3b8;
+        }
+
+        .ascii-art {
+            font-family: monospace;
+            white-space: pre;
+            color: #4ade80;
+            margin: 2rem 0;
+            font-size: 0.6rem;
+            line-height: 1;
+        }
+
+        .btn {
+            display: inline-block;
+            background-color: var(--primary-color);
+            color: white;
+            padding: 0.75rem 1.5rem;
+            border-radius: 4px;
+            text-decoration: none;
+            font-weight: 600;
+            transition: background-color 0.2s, transform 0.2s;
+            text-transform: uppercase;
+            font-size: 0.875rem;
+            letter-spacing: 0.05em;
+        }
+
+        .btn:hover {
+            background-color: #1d4ed8;
+            transform: translateY(-1px);
+        }
+
+        @media (max-width: 480px) {
+            h1 {
+                font-size: 5rem;
+            }
+
+            .container {
+                padding: 1.5rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>404</h1>
+        <h2>Page Not Found</h2>
+
+        <div class="ascii-art">
+            .d8888b. 888  888 .d8888b. 888d888 8888888b.
+           d88P  Y88b888  888d88P  Y88b888P"   888   Y88b
+           Y88b.     888  888888    888888     888    888
+            "Y888b.  8888888888   .d88P888     888   d88P
+               "Y88b.888  8888888888" 888     8888888P"
+                 "888888  888888      888     888
+           Y88b  d88PY88b 888Y88b  d88P888     888
+            "Y8888P"  "Y88888 "Y8888P" 888     888
+        </div>
+
+        <p>The page you're looking for doesn't exist or has been moved.</p>
+        <a href="/" class="btn">Return to Home</a>
+    </div>
+</body>
+</html>
