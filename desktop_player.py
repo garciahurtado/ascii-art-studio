@@ -250,7 +250,7 @@ def run_all_frames_color_thread(ascii_frame_buffer, render_frame_buffer, encoder
                     color_frame_buffer[i].append(frame_color_idx)
                     char_map = color_frame_buffer[i][0]
 
-                    # Export to binary file
+                    # Export to CPEG binary file
                     middle = char_map.shape[0] * char_map.shape[1]
                     char_map = encoder.embed_colors(char_map, frame_color_idx[:middle], frame_color_idx[middle:])
 
@@ -446,8 +446,12 @@ if __name__ == "__main__":
     player = VideoPlayer('resources/video/Akira - bike scene.mp4', resolution=(width, height), zoom=1)
     (width, height) = player.resolution
     player.play(sound=True)
-    #run_convert_to_png(ui, charset, converter, 'resources/images/garcia-retrato.png')
-    #run_webcam(ui, charset, converter)
+
+    """ 
+    Other functionality provided by the script:
+        run_convert_to_png(ui, charset, converter, 'resources/images/garcia-retrato.png')
+        run_webcam(ui, charset, converter)
+    """
 
     run_block_contrast(ui, pipeline, player, layer_window=layer_window)
     # 'resources/video/Star Wars - Opening Scene.mp4'

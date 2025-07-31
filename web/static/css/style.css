@@ -17,13 +17,33 @@ h1 {
     color: #ffffff;
 }
 
+#no_movie {
+    position: absolute;
+    font-size: 128px;
+    display: flex;
+    width: 100%;
+    height: 100%;
+    align-items: center;
+    align-content: center;
+    justify-content: center;
+    flex-wrap: wrap;
+    opacity: 0.5;
+    z-index: -1;
+}
+
 canvas {
     display: block;
     margin: auto;
+    z-index: 100;
 }
 
 canvas#player, canvas#palette_canvas {
-    border:1px solid #000000;
+    border:1px solid #A89765;
+}
+
+canvas#player {
+    background-color: rgba(25, 25, 25);
+    color: #888;
 }
 
 div#palette {
@@ -44,7 +64,7 @@ canvas#palette_canvas {
 #player_frame {
     border-radius: 10px;
     padding: 8px;
-    background-color: #404038;
+    background-color: #333;
     margin: auto;
     display:inline-block;
     text-align:center;
@@ -96,6 +116,10 @@ canvas#palette_canvas {
     border-radius: 50% / 50%;
 }
 
+.container label.text-gray-700 {
+    color: #767664;
+}
+
 /* --- Playback Controls --- */
 
 .controls {
@@ -112,7 +136,7 @@ canvas#palette_canvas {
     float: right;
 }
 
-.controls button {
+.controls button, .material-icons {
     position: relative;
     margin: 0;
     padding: 0;
@@ -149,6 +173,10 @@ canvas#palette_canvas {
 .controls button:active {
     top: 1px !important;
     color: #ffffff !important;
+}
+
+.controls button:active .material-icons {
+    color: rgb(118, 118, 100);
 }
 
 .controls button.large {

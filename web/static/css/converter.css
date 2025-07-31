@@ -1,19 +1,36 @@
 /* Image Converter Styles */
 
 /* Title Glitches Styling */
-h1 .title-converter {
-    width: 224px;
-    height: 32px;
+h1.title-converter {
+    font-size: 40px;
     background: none;
+    margin: 0;
+    padding: 0;
 }
 
-h1 .title-converter-image-mode {
-    color: transparent; /* Hide text when in image mode */
-    background: url(/static/img/converter-ascii-00.png) no-repeat;
-    background-position: left 0px top 8px;
-    background-size: 100% auto;
-    image-rendering: pixelated;
+h1.title-converter span {
+    width: 222px;
 }
+
+h1.title-converter-image-mode span {
+    color: transparent;
+}
+
+h1.title-converter img {
+    width: inherit;
+    height: auto;
+    position: absolute;
+    display: inline;
+    vertical-align: middle;
+    margin-top: 15px;
+    image-rendering: pixelated;
+    visibility: hidden;
+}
+
+h1.title-converter-image-mode img {
+    visibility: visible;
+}
+
 /* Drop Zone Styling */
 .drop-zone {
     max-width: 250px;
@@ -119,6 +136,13 @@ h1 .title-converter-image-mode {
     background-color: #d1d5db;
 }
 
+/* Form Styling */
+#charRows:disabled, #charCols:disabled {
+    background-color: #d3d7de;
+    color: #374962;
+    border: 1px solid #d1d5db;
+}
+
 /* Loading Animation */
 @keyframes spin {
     to { transform: rotate(360deg); }
@@ -170,6 +194,18 @@ h1 .title-converter-image-mode {
 .converted-image.visible {
     /* When visible, show the full image by adjusting the clip path */
     clip-path: inset(0 0 0 0);
+}
+
+.auto-landscape {
+    width: 100%;
+    height: auto;
+    display: block;
+}
+
+.auto-portrait {
+    width: auto;
+    height: 100%;
+    display: block;
 }
 
 /* Loading state for the converted image */

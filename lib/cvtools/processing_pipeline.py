@@ -10,30 +10,48 @@ import cvtools.contrast_filters as filters
 from ascii import AsciiConverter
 from color.palette_extractor import PaletteExtractor
 from cvtools import color_filters
-
+from my_logging import logger
 
 class ProcessingPipeline():
-    img_width = None
-    img_height = None
-    char_height = 8
-    char_width = 8
-    converter:AsciiConverter = None
+    # Tunable pipeline parameters
+    brightness = 0
+    contrast = 0
 
-    # Images at each stage of the pipeline
-    grayscale = None
-    contrast_mask = None
-    color_mask = None
-    contrast_img = None
-    ascii = None
-    ascii_inv = None
-    fg_colors = None
-    bg_colors = None
-    color_ascii = None
+    def __init__(self, brightness=0, contrast=0):
+        """Initialize the processing pipeline with optional brightness and contrast settings.
+        
+        Args:
+            brightness: Brightness adjustment (0-100, default 0)
+            contrast: Contrast adjustment (0-100, mapped to 1.0-3.0, default 1.0)
+        """
+        # Map contrast from 0-100 to 1.0-3.0 (1.0 is no change)
+        self.contrast = 1.0 + (float(contrast) / 100.0 * 4.0)  # 0-100 -> 1.0-5.0
 
-    palette = None
-    extractor = None
-    invert = None
-    color = None
+        # Brightness is already in 0-100 range for OpenCV
+        self.brightness = -400 + (float(brightness) * 8.0)  # -400 -> +400
+
+        logger.info(f"Pipeline initialized with Contrast: {self.contrast}, Brightness: {self.brightness}")
+        
+        # Initialize other instance variables
+        self.img_width = None
+        self.img_height = None
+        self.char_height = 8
+        self.char_width = 8
+        self.converter = None
+        self.grayscale = None
+        self.contrast_mask = None
+        self.color_mask = None
+        self.contrast_img = None
+        self.ascii = None
+        self.ascii_inv = None
+        self.fg_colors = None
+        self.bg_colors = None
+        self.color_ascii = None
+        self.palette = None
+        self.extractor = None
+        self.invert = None
+        self.color = None
+        self.original = None
 
     def run(self, input_img, invert=False):
         self.original = input_img
@@ -79,15 +97,13 @@ class ProcessingPipeline():
     def _run_create_grayscale(self, input_img):
         grayscale = input_img.copy()
         grayscale = cv.cvtColor(grayscale, cv.COLOR_BGR2GRAY)
-        grayscale = color_filters.brightness_contrast(grayscale, 20, 20)
+        grayscale = color_filters.brightness_contrast(grayscale, self.brightness, self.contrast)
         self.grayscale = grayscale
-
         return input_img
 
 
     def _run_create_high_contrast(self, input_img):
         self.contrast_img = filters.block_contrast(self.grayscale, (self.char_height*2, self.char_width*2), invert=self.invert)
-
         return input_img
 
 
@@ -105,7 +121,6 @@ class ProcessingPipeline():
     def _run_convert_to_ascii(self, img):
         self.ascii = self.converter.convert_image(self.contrast_img)
         self.ascii_inv = cv.bitwise_not(self.ascii)
-
         return self.ascii
 
 
@@ -143,7 +158,7 @@ class ProcessingPipeline():
                 block.bg_color = true_bg_colors[row_idx][col_idx]
                 block.fg_color = true_fg_colors[row_idx][col_idx]
 
-        # self.color_ascii = color_filters.palettize(self.color_ascii, self.palette)
+        self.color_ascii = color_filters.palettize(self.color_ascii, self.palette)
 
         return bg_color
 
@@ -164,8 +179,8 @@ class ProcessingPipeline():
 
     def _run_final_blend(self, _):
         """Final mix between colored ASCII blocks and flat color blocks"""
-        #blended = cv.bitwise_or(self.color_ascii, self.flat_colors)
-        #self.color_ascii = color_filters.quantize_img(self.color_ascii)
+        # blended = cv.bitwise_or(self.color_ascii, self.flat_colors)
+        self.color_ascii = color_filters.quantize_img(self.color_ascii)
         return self.color_ascii
 
     def _run_final_resize(self, input_img):

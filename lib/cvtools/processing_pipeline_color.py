@@ -14,7 +14,14 @@ from . import color_filters
 from .processing_pipeline import ProcessingPipeline
 
 class ProcessingPipelineColor(ProcessingPipeline):
-    def __init__(self):
+    def __init__(self, brightness=0, contrast=0):
+        """Initialize the color processing pipeline with optional brightness and contrast settings.
+        
+        Args:
+            brightness: Brightness adjustment (0-100, default 0)
+            contrast: Contrast adjustment (0-100, mapped to 1.0-3.0, default 1.0)
+        """
+        super().__init__(brightness, contrast)
         self.extractor = PaletteExtractor()
 
     def run(self, input_image):
@@ -33,7 +40,6 @@ class ProcessingPipelineColor(ProcessingPipeline):
         image = self.resize(image)
 
         return image
-
 
     def extract_palette(self, image, num_colors=64, previous_palette=None):
         color_idx, self.palette = self.extractor.extract_palette(

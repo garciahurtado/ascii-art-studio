@@ -1,7 +1,7 @@
 import os
 import sys
 import traceback
-import logging
+from my_logging import logger
 
 import cv2
 import numpy as np
@@ -12,21 +12,12 @@ import base64
 from PIL import Image
 from flask import Flask, request, jsonify, send_from_directory, render_template_string, send_file
 
+from color.palette import Palette
+
 # Create the Flask app here so that the decorators can be used
 app = Flask(__name__, static_folder='static')
 
 CONVERT_TO_BGR = False
-
-# Set up logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.StreamHandler(sys.stderr),
-        logging.FileHandler('app.log')
-    ]
-)
-logger = logging.getLogger(__name__)
 
 # Import the ASCII converter and processing pipeline
 from ascii.neural_ascii_converter_pytorch import NeuralAsciiConverterPytorch
@@ -38,23 +29,29 @@ CHAR_WIDTH, CHAR_HEIGHT = 8, 8
 CHARSET_NAME = 'c64.png'
 MODEL_FILENAME = 'ascii_c64-Mar17_21-33-46'
 MODEL_CHARSET = 'ascii_c64'
+PALETTE_NAME = 'atari.png'
 
 # CHARSET_NAME = 'amstrad-cpc.png'
 # MODEL_FILENAME = 'AsciiAmstradCPC-Mar06_23-14-37'
 # MODEL_CHARSET = 'AsciiAmstradCPC'
 
+# Configuration
+STATIC_ROOT = 'static'
+TEMP_DIR = Path('temp')
+TEMP_DIR.mkdir(exist_ok=True)
+
+# Ensure the temp directory exists
+os.makedirs(TEMP_DIR, exist_ok=True)
+
 def init_converter():
     """Initialize the ASCII converter with C64 settings.
-    
-    Returns:
-        tuple: (converter, pipeline_ascii) or (None, None, None) if initialization fails
     """
     try:
         # Load the C64 charset
         charset = Charset(CHAR_WIDTH, CHAR_HEIGHT)
         charset.load(CHARSET_NAME, invert=False)
         NUM_LABELS = len(charset.chars)
-        
+
         # Initialize the converter with C64 model
         converter = NeuralAsciiConverterPytorch(
             charset=charset,
@@ -64,27 +61,17 @@ def init_converter():
             num_labels=NUM_LABELS
         )
 
+        return converter
 
-        # Initialize the processing pipeline
-        pipeline_ascii = ProcessingPipelineColor()
-        pipeline_ascii.converter = converter
-
-        return converter, pipeline_ascii
-        
     except Exception as e:
         logger.error(f"Failed to initialize C64 converter: {e}")
-        return None, None, None
+        return None
 
-# Initialize the converter and pipelines
-converter, pipeline_ascii = init_converter()
-
-# Configuration
-STATIC_ROOT = 'static'
-TEMP_DIR = Path('temp')
-TEMP_DIR.mkdir(exist_ok=True)
-
-# Ensure the temp directory exists
-os.makedirs(TEMP_DIR, exist_ok=True)
+def init_palette():
+    # Initialize the palette
+    palette = Palette(char_width=CHAR_WIDTH, char_height=CHAR_HEIGHT)
+    palette.load(PALETTE_NAME)
+    return palette
 
 def cleanup_temp_files():
     """Remove all files in the temporary directory."""
@@ -142,6 +129,7 @@ def serve_converter():
     """Serve the image to ASCII art converter page."""
     return send_from_directory(app.static_folder, 'converter.html')
 
+
 @app.route('/convert', methods=['POST'])
 def convert_image():
     """Handle image upload and return rendered ASCII art as a PNG image.
@@ -149,7 +137,6 @@ def convert_image():
     Returns:
         Response: The rendered ASCII art as a PNG image
     """
-    global converter, pipeline_ascii, pipeline_color
     temp_path = None
     
     try:
@@ -161,15 +148,28 @@ def convert_image():
         if upload.filename == '':
             return jsonify({'error': 'No selected file'}), 400
         
-        # Get character dimensions from form data with defaults
+        """ Get conversion parameters from form data with defaults """
+        # Get conversion parameters from form data with defaults
         try:
             char_cols = int(request.form.get('char_cols', 80))
             char_rows = int(request.form.get('char_rows', 40))
-            # Ensure minimum values
+
+            # Ensure minimum values for character dimensions
             char_cols = max(10, min(200, char_cols))
             char_rows = max(10, min(200, char_rows))
-        except (ValueError, TypeError):
+
+            # Get brightness and contrast with defaults (0/0)
+            brightness = int(request.form.get('brightness', 0))
+            contrast = int(request.form.get('contrast', 0))
+
+            # Ensure values are within valid range (0-100)
+            brightness = max(0, min(100, brightness))
+            contrast = max(0, min(100, contrast))
+
+        except (ValueError, TypeError) as e:
+            logger.warning(f"Error parsing form data: {e}")
             char_cols, char_rows = 80, 40  # Default values if parsing fails
+            brightness, contrast = 0, 0  # Default values for brightness/contrast
         
         # Validate file extension
         filename = upload.filename.lower()
@@ -179,45 +179,51 @@ def convert_image():
         # Save the uploaded file temporarily
         temp_path = TEMP_DIR / f'upload_{os.urandom(8).hex()}{os.path.splitext(filename)[1]}'
         upload.save(str(temp_path))
+
+        palette = init_palette()
+        converter = init_converter()
+        charset = converter.charset
         
         try:
             # Open and process the image
-            with Image.open(temp_path) as img:
-                # Convert to numpy array (BGR format expected by OpenCV)
-                if CONVERT_TO_BGR:  # BGR:
-                    img_np = np.array(img)[:, :, ::-1]  # RGB to BGR
-                else:
-                    img_np = cv2.cvtColor(np.array(img), cv2.COLOR_RGB2BGR)
-                
-                # Calculate target dimensions based on character grid
-                char_size = 8  # Character block size
-                target_width = char_cols * char_size
-                target_height = char_rows * char_size
-                
-                # Set pipeline dimensions
-                pipeline_ascii.img_width = target_width
-                pipeline_ascii.img_height = target_height
-                pipeline_ascii.char_width = char_size
-                pipeline_ascii.char_height = char_size
+            img = cv2.imread(str(temp_path))
+            height, width = img.shape[0], img.shape[1]
 
-                # Run the processing pipeline
-                color_img = pipeline_ascii.run(img_np)
+            width = char_cols * charset.char_width
+            height = char_rows * charset.char_height
 
-                # Convert back to RGB for web display
-                color_img = cv2.cvtColor(color_img, cv2.COLOR_BGR2RGB)
-                
-                # Convert the color image to bytes
-                img_pil = Image.fromarray(color_img)
-                img_io = BytesIO()
-                img_pil.save(img_io, 'PNG')
-                img_io.seek(0)
-                
-                # Return the image directly
-                return send_file(
-                    img_io,
-                    mimetype='image/png',
-                    as_attachment=False
-                )
+            # Adjust in case the image is not a multiple of the character size
+            height = height - (height % charset.char_height)
+            width = width - (width % charset.char_width)
+
+            pipeline = get_pipeline(
+                converter=converter,
+                height=height,
+                width=width,
+                char_height=charset.char_height,
+                char_width=charset.char_width,
+                palette=palette,
+                brightness=brightness,
+                contrast=contrast
+            )
+            pipeline.palette = palette
+            final_img = pipeline.run(img)
+
+            # Convert back to RGB for web display
+            final_img = cv2.cvtColor(final_img, cv2.COLOR_BGR2RGB)
+
+            # Convert the color image to bytes
+            img_pil = Image.fromarray(final_img)
+            img_io = BytesIO()
+            img_pil.save(img_io, 'PNG')
+            img_io.seek(0)
+
+            # Also return the image directly in the HTTP response
+            return send_file(
+                img_io,
+                mimetype='image/png',
+                as_attachment=False
+            )
                 
         except Exception as e:
             log_error(e, request)
@@ -298,8 +304,37 @@ def internal_error(error):
         'error_id': error_id
     }), 500
 
-# Initialize Flask app
 
+def get_pipeline(converter, height, width, char_height, char_width, palette, brightness=0, contrast=0):
+    """Create and configure a processing pipeline for ASCII art conversion.
+    
+    Args:
+        converter: The ASCII converter to use
+        height: Desired output height in pixels
+        width: Desired output width in pixels
+        char_height: Height of each character in pixels
+        char_width: Width of each character in pixels
+        palette: Color palette to use for the output
+        brightness: Brightness adjustment (0-100, default 0)
+        contrast: Contrast adjustment (0-100, mapped to 1.0-3.0, default 0 which maps to 1.0)
+        
+    Returns:
+        Configured ProcessingPipelineColor instance
+    """
+    # Create pipeline with brightness and contrast settings
+    pipeline = ProcessingPipelineColor(brightness=brightness, contrast=contrast)
+
+    # Set other pipeline properties
+    pipeline.converter = converter
+    pipeline.img_width = width
+    pipeline.img_height = height
+    pipeline.char_height = char_height
+    pipeline.char_width = char_width
+    pipeline.palette = palette
+
+    return pipeline
+
+# Initialize Flask app
 def init_app():
     """Initialize the Flask application."""
     # Clean up any existing temp files on startup

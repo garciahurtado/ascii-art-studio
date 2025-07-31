@@ -14,6 +14,17 @@ document.addEventListener('DOMContentLoaded', function() {
     const result = document.getElementById('result');
     const preview = document.getElementById('preview');
     const copyBtn = document.getElementById('copyBtn');
+    const charCols = document.getElementById('charCols');
+    const charRows = document.getElementById('charRows');
+
+    // Toggle advanced settings
+    const toggleAdvancedBtn = document.getElementById('toggleAdvanced');
+    const advancedSettings = document.getElementById('advancedSettings');
+    const brightnessSlider = document.getElementById('brightness');
+    const brightnessValue = document.getElementById('brightnessValue');
+    const contrastSlider = document.getElementById('contrast');
+    const contrastValue = document.getElementById('contrastValue');
+
     let file = null;
 
     // Prevent default drag behaviors
@@ -47,6 +58,55 @@ document.addEventListener('DOMContentLoaded', function() {
     // Handle copy to clipboard
     if (copyBtn) {
         copyBtn.addEventListener('click', copyToClipboard);
+    }
+
+    charCols.addEventListener('click', () => {
+        charRows.disabled = true;
+        charCols.disabled = false;
+    });
+
+    charRows.addEventListener('click', () => {
+        charCols.disabled = true;
+        charRows.disabled = false;
+    });
+
+    charCols.addEventListener('input', () => {
+        /* calculate the value of the other field */
+        if (charCols.value && !isNaN(charCols.value)) {
+            charRows.value = charCols.value * (charRows.value / charCols.value);
+            console.log(charRows.value);
+        }
+    });
+    charRows.addEventListener('input', () => {
+        /* calculate the value of the other field */
+
+        if (charRows.value && !isNaN(charRows.value)) {
+            /* First figure out the aspect ratio of the image */
+            aspectRatio = image.width / image.height;
+
+            charCols.value = charRows.value * (charCols.value / charRows.value);
+            console.log(charCols.value);
+        }
+    });
+
+    if (toggleAdvancedBtn && advancedSettings) {
+        toggleAdvancedBtn.addEventListener('click', () => {
+            const isHidden = advancedSettings.classList.toggle('hidden');
+            toggleAdvancedBtn.textContent = isHidden ? '▼ Advanced Settings' : '▲ Advanced Settings';
+        });
+    }
+
+    // Update slider value displays
+    if (brightnessSlider && brightnessValue) {
+        brightnessSlider.addEventListener('input', () => {
+            brightnessValue.textContent = brightnessSlider.value;
+        });
+    }
+
+    if (contrastSlider && contrastValue) {
+        contrastSlider.addEventListener('input', () => {
+            contrastValue.textContent = contrastSlider.value;
+        });
     }
 
     /**
@@ -211,11 +271,31 @@ document.addEventListener('DOMContentLoaded', function() {
         if (charRows && charRows.value) {
             formData.append('char_rows', charRows.value);
         }
+        // Add advanced settings to form data if they exist
+        if (brightnessSlider) formData.append('brightness', brightnessSlider.value);
+        if (contrastSlider) formData.append('contrast', contrastSlider.value);
+
         // Show loading state and prepare result container
         uploadForm.parentElement.classList.add('hidden');
         if (result) {
             result.innerHTML = '';
             result.classList.remove('hidden');
+
+            addClassAuto = '';
+            removeClassAuto = '';
+
+            if (charCols >= charRows) {
+                /* Landscape */
+                addClassAuto = 'auto-landscape';
+                removeClassAuto = 'auto-portrait';
+            } else {
+                /* Portrait */
+                addClassAuto = 'auto-portrait';
+                removeClassAuto = 'auto-landscape';
+            }
+            result.classList.add(addClassAuto);
+            result.classList.remove(removeClassAuto);
+            result.classList.add('hidden');
         }
 
         // Display original image immediately
@@ -252,6 +332,13 @@ document.addEventListener('DOMContentLoaded', function() {
             showError(error.message || 'An error occurred during conversion. Please try again.');
         }
     }
+
+    /**
+     * When we click on either of the columns or rows fields, we need to disable the other one
+     */
+     function attachFieldListeners() {
+
+     }
 
     /**
      * Display the original uploaded image
@@ -432,93 +519,4 @@ document.addEventListener('DOMContentLoaded', function() {
     function showError(message) {
         showFeedback(message, true);
     }
-
-// Add this at the end of the file, just before the closing }); of DOMContentLoaded
-
-// Glitch effect for the title
-function initGlitchEffect() {
-    const titleElement = document.querySelector('.title-converter');
-    if (!titleElement) return;
-
-    const numFrames = 9; // Frames 00-08
-    const baseFrameDuration = 70; // Base duration in milliseconds
-
-    let isGlitching = false;
-    let glitchTimeout;
-
-    // Function to show a single frame, or remove the background image at the end of the sequence
-    const showFrame = (frameNum) => {
-        if(frameNum===false){
-            attrValue = 'none';
-        } else {
-            const frameStr = frameNum.toString().padStart(2, '0');
-            attrValue = `url(/static/img/converter-ascii-${frameStr}.png)`;
-        }
-        titleElement.style.backgroundImage = attrValue;
-    };
-
-    // Function to play the glitch sequence
-    const playGlitchSequence = () => {
-        if (isGlitching) return;
-        isGlitching = true;
-
-        // If this is the first glitch, switch to image mode
-        titleElement.classList.add('title-converter-image-mode');
-        titleElement.classList.remove('title-converter');
-
-        let frameCount = 0;
-        let currentFrame = 0;
-
-        // Show the first frame immediately
-        showFrame(currentFrame);
-
-        // Set up the total number of frames
-        const totalFrames = 3 + Math.floor(Math.random() * 17); // 3-20 frames
-
-        const showNextFrame = () => {
-            if (frameCount >= totalFrames - 1) {
-                // End of the sequence
-                isGlitching = false;
-
-                titleElement.classList.add('title-converter');
-                titleElement.classList.remove('title-converter-image-mode');
-                showFrame(false);
-
-                // Schedule the next glitch sequence
-                const nextGlitchDelay = 2000 + Math.random() * 7000; // 2-9 seconds
-                setTimeout(playGlitchSequence, nextGlitchDelay);
-                return;
-            }
-
-            isGlitching = true
-            frameCount++;
-            currentFrame = Math.floor(Math.random() * numFrames);
-            showFrame(currentFrame);
-
-            // Calculate random delay for the next frame
-            randBaseDelay = Math.floor(baseFrameDuration * (Math.random()+0.4));
-            let randomDelay = randBaseDelay + Math.floor(Math.random() * baseFrameDuration * 2.5);
-
-            // Schedule next frame
-            setTimeout(showNextFrame, randomDelay);
-        };
-        if (isGlitching = true) {
-            showNextFrame();
-        }
-    };
-
-    // Schedule the next glitch
-    const scheduleNextGlitch = () => {
-        const delay = 3000 + Math.random() * 7000; // 8-16 seconds frequency
-        clearTimeout(glitchTimeout);
-        glitchTimeout = setTimeout(playGlitchSequence, delay);
-    };
-
-    // Initialize
-    // Start with just text, schedule first glitch
-    scheduleNextGlitch();
-}
-
-// Initialize the glitch effect when the page loads
-initGlitchEffect();
 });
