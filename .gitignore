@@ -2,6 +2,8 @@
 *.caffemodel
 
 resources/screenshots/*
+resources/source_video/*
+resources/source_images/*
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
