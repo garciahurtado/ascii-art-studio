@@ -53,6 +53,83 @@ h1.title-converter-image-mode img {
     max-width: 100%;
 }
 
+
+/* Form Styling / widgets and buttons */
+
+#charRows:disabled, #charCols:disabled {
+    background-color: #d3d7de;
+    color: #374962;
+    border: 1px solid #d1d5db;
+}
+
+form button {
+    color: white;
+    background-color: #1d4ed8;
+    font-size: 0.875rem;
+    line-height: 1.25rem;
+}
+
+form button#toggleAdvanced {
+    background-color: transparent;
+    width: 100%;
+}
+
+form button#toggleAdvanced:hover {
+    color: #57edff;
+}
+
+/* Advanced Options */
+
+#advancedSettings {
+    color: white;
+    background-color: #333;
+    padding: 1rem;
+    padding-top: 0.5rem;
+}
+
+#advancedSettings input[type="range"] {
+    background-color: #767664;
+    height: 0.4rem;
+}
+
+#advancedSettings input[type="range"]::-webkit-slider-thumb {
+    background-color: #0000FF;
+}
+
+#advancedSettings input[type="range"]::-moz-range-thumb {
+    background-color: #0000FF;
+}
+
+/* --------------------------- webkit browsers */
+#advancedSettings input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 10px;
+  background-color: #1d4ed8;
+  overflow: visible;
+  cursor: pointer;
+}
+/* -------------------------- Firefox */
+#advancedSettings input[type="range"]::-moz-range-thumb {
+  -moz-appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 10px;
+  background-color: #1d4ed8;
+  overflow: visible;
+  cursor: pointer;
+}
+#advancedSettings input[type="range"]::-moz-focus-outer { border: 0; }
+/* Remove dotted outline from range input element focused in Firefox */
+
+#advancedSettings label {
+    font-size: 0.75rem;
+    font-weight: 800;
+    margin-top: 0.75rem;
+    display: block;
+}
+
 /* ASCII Output Styling */
 .ascii-output {
     font-family: monospace;
@@ -93,13 +170,6 @@ h1.title-converter-image-mode img {
 
 .btn-secondary:hover {
     background-color: #d1d5db;
-}
-
-/* Form Styling */
-#charRows:disabled, #charCols:disabled {
-    background-color: #d3d7de;
-    color: #374962;
-    border: 1px solid #d1d5db;
 }
 
 /* Loading Animation */

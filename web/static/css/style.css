@@ -21,6 +21,17 @@ h1 {
     color: #ffffff;
 }
 
+header h4, form h4 {
+    font-size: 0.875rem;
+    line-height: 1.25rem;
+    color: #6b7280;
+    font-weight: 500;
+}
+
+header h4 {
+    font-weight: 600;
+}
+
 /* --- Navigation Bar --- */
 
 .nav-bar {
@@ -30,8 +41,16 @@ h1 {
     justify-content: space-between;
     align-items: center;
     margin-bottom: 4px;
-
+    font-family: "Outfit", sans-serif;
+    font-style: normal;
+    font-weight: 500;
 }
+
+.nav-bar .logo {
+    color: #4fbbc8;
+    font-size: 1.6rem;
+}
+
 .nav-links {
     display: flex;
     gap: 20px;
@@ -52,7 +71,7 @@ h1 {
 }
 .nav-links a.active {
     color: rgb(32 32 25);
-    background-color: #028090;
+    background-color: #0897a9;
 }
 .nav-links a.active .material-icons {
     color: #666666;
