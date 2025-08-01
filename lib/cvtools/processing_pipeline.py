@@ -10,27 +10,29 @@ import cvtools.contrast_filters as filters
 from ascii import AsciiConverter
 from color.palette_extractor import PaletteExtractor
 from cvtools import color_filters
-from my_logging import logger
+from logging_config import logger
 
 class ProcessingPipeline():
     # Tunable pipeline parameters
     brightness = 0
     contrast = 0
 
-    def __init__(self, brightness=0, contrast=0):
+    def __init__(self, brightness=0, contrast=1):
         """Initialize the processing pipeline with optional brightness and contrast settings.
         
         Args:
-            brightness: Brightness adjustment (0-100, default 0)
-            contrast: Contrast adjustment (0-100, mapped to 1.0-3.0, default 1.0)
+            brightness: Brightness adjustment (0-100, default 0, no change)
+            contrast: Contrast adjustment (1.0-3.0, default 1.0 - no change)
         """
-        # Map contrast from 0-100 to 1.0-3.0 (1.0 is no change)
-        self.contrast = 1.0 + (float(contrast) / 100.0 * 4.0)  # 0-100 -> 1.0-5.0
-
         # Brightness is already in 0-100 range for OpenCV
-        self.brightness = -400 + (float(brightness) * 8.0)  # -400 -> +400
+        # self.brightness = -400 + (float(brightness) * 8.0)  # -400 -> +400
+        self.brightness = brightness
 
-        logger.info(f"Pipeline initialized with Contrast: {self.contrast}, Brightness: {self.brightness}")
+        # Map contrast from 0-100 to 1.0-3.0 (1.0 is no change, 3.0 is triple contrast)
+        # self.contrast = 1.0 + (float(contrast) / 100.0 * 4.0)  # 0-100 -> 1.0-5.0
+        self.contrast = contrast
+
+        logger.info(f"Pipeline initialized with Brightness: {self.brightness}, Contrast: {self.contrast}")
         
         # Initialize other instance variables
         self.img_width = None
@@ -158,7 +160,7 @@ class ProcessingPipeline():
                 block.bg_color = true_bg_colors[row_idx][col_idx]
                 block.fg_color = true_fg_colors[row_idx][col_idx]
 
-        self.color_ascii = color_filters.palettize(self.color_ascii, self.palette)
+        # self.color_ascii = color_filters.palettize(self.color_ascii, self.palette)
 
         return bg_color
 

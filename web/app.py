@@ -1,7 +1,9 @@
 import os
 import sys
 import traceback
-from my_logging import logger
+
+from cvtools.processing_pipeline import ProcessingPipeline
+from logging_config import logger
 
 import cv2
 import numpy as np
@@ -11,6 +13,8 @@ from io import BytesIO
 import base64
 from PIL import Image
 from flask import Flask, request, jsonify, send_from_directory, render_template_string, send_file
+from werkzeug.utils import secure_filename
+import tempfile
 
 from color.palette import Palette
 
@@ -22,7 +26,7 @@ CONVERT_TO_BGR = False
 # Import the ASCII converter and processing pipeline
 from ascii.neural_ascii_converter_pytorch import NeuralAsciiConverterPytorch
 from charset import Charset
-from cvtools.processing_pipeline_color import ProcessingPipelineColor
+from schemas import validate_conversion_data
 
 # Initialize the converter with C64 charset
 CHAR_WIDTH, CHAR_HEIGHT = 8, 8
@@ -132,114 +136,142 @@ def serve_converter():
 
 @app.route('/convert', methods=['POST'])
 def convert_image():
-    """Handle image upload and return rendered ASCII art as a PNG image.
-    
-    Returns:
-        Response: The rendered ASCII art as a PNG image
-    """
+    """Handle image upload and return rendered ASCII art as a PNG image."""
     temp_path = None
-    
+
     try:
-        # Check if the post request has the file part
-        if 'image' not in request.files:
-            return jsonify({'error': 'No image file provided'}), 400
-            
-        upload = request.files['image']
-        if upload.filename == '':
-            return jsonify({'error': 'No selected file'}), 400
+        # Validate input using our schema
+        result = validate_conversion_data(request.form, request.files)
         
-        """ Get conversion parameters from form data with defaults """
-        # Get conversion parameters from form data with defaults
-        try:
-            char_cols = int(request.form.get('char_cols', 80))
-            char_rows = int(request.form.get('char_rows', 40))
-
-            # Ensure minimum values for character dimensions
-            char_cols = max(10, min(200, char_cols))
-            char_rows = max(10, min(200, char_rows))
-
-            # Get brightness and contrast with defaults (0/0)
-            brightness = int(request.form.get('brightness', 0))
-            contrast = int(request.form.get('contrast', 0))
-
-            # Ensure values are within valid range (0-100)
-            brightness = max(0, min(100, brightness))
-            contrast = max(0, min(100, contrast))
-
-        except (ValueError, TypeError) as e:
-            logger.warning(f"Error parsing form data: {e}")
-            char_cols, char_rows = 80, 40  # Default values if parsing fails
-            brightness, contrast = 0, 0  # Default values for brightness/contrast
+        # Check if validation failed (returns a tuple with errors)
+        if isinstance(result, tuple) and len(result) == 2 and 'errors' in result[0]:
+            logger.error(f"Validation failed: {result[0]}")
+            return jsonify(result[0]), result[1]
         
-        # Validate file extension
-        filename = upload.filename.lower()
-        if not (filename.endswith(('.png', '.jpg', '.jpeg'))):
-            return jsonify({'error': 'Unsupported file format. Please upload a PNG or JPG image.'}), 400
-        
-        # Save the uploaded file temporarily
-        temp_path = TEMP_DIR / f'upload_{os.urandom(8).hex()}{os.path.splitext(filename)[1]}'
-        upload.save(str(temp_path))
+        # If we get here, the data is valid
+        form_data = result[0] if isinstance(result, tuple) and len(result) > 0 else result
 
+        logger.info(f"convert_image form_data: {form_data}")
+        
+        upload = form_data['image']
+        brightness = form_data['brightness']
+        contrast = form_data['contrast']
+        char_cols = form_data['char_cols']
+        char_rows = form_data['char_rows']
+
+        if not upload or upload.filename == '':
+            error_msg = 'No file was uploaded'
+            logger.error(error_msg)
+            return jsonify({'error': error_msg, 'field': 'image'}), 400
+
+        if not upload.filename.lower().endswith(('.png', '.jpg', '.jpeg')):
+            error_msg = 'Unsupported file type. Please upload a PNG or JPG image.'
+            logger.error(error_msg)
+            return jsonify({'error': error_msg, 'field': 'image'}), 400
+
+        # Create a temporary file to store the upload
+        temp_path = os.path.join(tempfile.gettempdir(), secure_filename(upload.filename))
+
+        upload.save(temp_path)
+
+        # Verify the file was saved and is not empty
+        if not os.path.exists(temp_path) or os.path.getsize(temp_path) == 0:
+            error_msg = 'Uploaded file is empty or could not be saved'
+            logger.error(error_msg)
+            return jsonify({'error': error_msg, 'field': 'image'}), 400
+
+        logger.info(f"Processing image: {upload.filename} ({os.path.getsize(temp_path)} bytes)")
+
+        # Initialize palette and converter
         palette = init_palette()
+        if not palette:
+            error_msg = 'Failed to initialize color palette'
+            logger.error(error_msg)
+            return jsonify({'error': error_msg}), 500
+
+        logger.info(f"Using palette: {palette}")
+        logger.info(f"Number of colors in palette: {len(palette.colors) if palette else 0}")
+
         converter = init_converter()
+        if not converter:
+            error_msg = 'Failed to initialize ASCII converter'
+            logger.error(error_msg)
+            return jsonify({'error': error_msg}), 500
+
         charset = converter.charset
-        
-        try:
-            # Open and process the image
-            img = cv2.imread(str(temp_path))
-            height, width = img.shape[0], img.shape[1]
 
-            width = char_cols * charset.char_width
-            height = char_rows * charset.char_height
+        # Read and verify the image
+        img = cv2.imread(temp_path)
 
-            # Adjust in case the image is not a multiple of the character size
-            height = height - (height % charset.char_height)
-            width = width - (width % charset.char_width)
+        if img is None:
+            error_msg = f'Failed to read image file: {upload.filename}'
+            logger.error(error_msg)
+            return jsonify({'error': error_msg, 'field': 'image'}), 400
 
-            pipeline = get_pipeline(
-                converter=converter,
-                height=height,
-                width=width,
-                char_height=charset.char_height,
-                char_width=charset.char_width,
-                palette=palette,
-                brightness=brightness,
-                contrast=contrast
-            )
-            pipeline.palette = palette
-            final_img = pipeline.run(img)
+        width = char_cols * charset.char_width
+        height = char_rows * charset.char_height
 
-            # Convert back to RGB for web display
-            final_img = cv2.cvtColor(final_img, cv2.COLOR_BGR2RGB)
+        # Slightly crop the image dimensions if they are not an exact multiple of the character size
+        height = int(height - (height % charset.char_height))
+        width = int(width - (width % charset.char_width))
 
-            # Convert the color image to bytes
-            img_pil = Image.fromarray(final_img)
-            img_io = BytesIO()
-            img_pil.save(img_io, 'PNG')
-            img_io.seek(0)
+        # Process the image
+        pipeline = get_pipeline(
+            converter=converter,
+            height=height,
+            width=width,
+            char_height=charset.char_height,
+            char_width=charset.char_width,
+            palette=palette,
+            brightness=brightness,
+            contrast=contrast
+        )
 
-            # Also return the image directly in the HTTP response
-            return send_file(
-                img_io,
-                mimetype='image/png',
-                as_attachment=False
-            )
-                
-        except Exception as e:
-            log_error(e, request)
-            return jsonify({'error': f'Error processing image: {str(e)}'}), 500
-            
+        logger.info(f"Starting image processing: {width}x{height}, brightness={brightness}, contrast={contrast}")
+        final_img = pipeline.run(img)
+
+        # Convert back to RGB for web display
+        final_img = cv2.cvtColor(final_img, cv2.COLOR_BGR2RGB)
+
+        # Convert the color image to bytes
+        img_pil = Image.fromarray(final_img)
+        img_io = BytesIO()
+        img_pil.save(img_io, 'PNG')
+        img_io.seek(0)
+
+        logger.info("Image processing completed successfully")
+        return send_file(
+            img_io,
+            mimetype='image/png',
+            as_attachment=False
+        )
+
+    except ValueError as ve:
+        error_msg = f'Invalid parameter value: {str(ve)}'
+        logger.error(f"{error_msg}\n{traceback.format_exc()}")
+        return jsonify({'error': error_msg, 'type': 'value_error'}), 400
+
+    except KeyError as ke:
+        error_msg = f'Missing required parameter: {str(ke)}'
+        logger.error(f"{error_msg}\n{traceback.format_exc()}")
+        return jsonify({'error': error_msg, 'type': 'missing_field', 'field': str(ke)}), 400
+
     except Exception as e:
-        log_error(e, request)
-        return jsonify({'error': 'An unexpected error occurred'}), 500
-        
+        error_msg = f'An unexpected error occurred: {str(e)}'
+        logger.error(f"{error_msg}\n{traceback.format_exc()}")
+        return jsonify({
+            'error': 'An internal server error occurred',
+            'details': str(e),
+            'type': 'unexpected_error'
+        }), 500
+
     finally:
         # Clean up the temporary file
-        if temp_path and temp_path.exists():
+        if temp_path and os.path.exists(temp_path):
             try:
-                temp_path.unlink()
+                os.unlink(temp_path)
             except Exception as e:
-                logger.error(f"Error deleting temp file {temp_path}: {e}")
+                logger.error(f"Non Fatal Error deleting temp file {temp_path}: str(e)")
 
 @app.route('/api/videos')
 def list_videos():
@@ -305,7 +337,7 @@ def internal_error(error):
     }), 500
 
 
-def get_pipeline(converter, height, width, char_height, char_width, palette, brightness=0, contrast=0):
+def get_pipeline(converter, height, width, char_height, char_width, palette, brightness=0, contrast=1):
     """Create and configure a processing pipeline for ASCII art conversion.
     
     Args:
@@ -322,7 +354,7 @@ def get_pipeline(converter, height, width, char_height, char_width, palette, bri
         Configured ProcessingPipelineColor instance
     """
     # Create pipeline with brightness and contrast settings
-    pipeline = ProcessingPipelineColor(brightness=brightness, contrast=contrast)
+    pipeline = ProcessingPipeline(brightness=brightness, contrast=contrast)
 
     # Set other pipeline properties
     pipeline.converter = converter

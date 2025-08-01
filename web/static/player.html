@@ -10,86 +10,12 @@
     <script type="text/javascript" src="js/palette_frame.js"></script>
     <script type="text/javascript" src="js/fps_runner.js"></script>
     <script type="text/javascript" src="js/app.js"></script>
-    <link href="css/style.css" type="text/css" rel="stylesheet"/>
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
-    <style>
-        .nav-bar {
-            background-color: #333;
-            padding: 10px 20px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-        .nav-links {
-            display: flex;
-            gap: 20px;
-        }
-        .nav-links a {
-            color: white;
-            text-decoration: none;
-            font-size: 16px;
-            padding: 8px 12px;
-            border-radius: 4px;
-            transition: background-color 0.3s;
-        }
-        .nav-links a:hover {
-            background-color: #555;
-        }
-        .nav-links a.active {
-            color: rgb(32 32 25);
-            background-color: #83af4c;
-        }
-        .logo {
-            color: white;
-            font-weight: bold;
-            font-size: 18px;
-        }
-        .file-selector {
-            margin-right: 15px;
-        }
-        #fileSelector {
-            padding: 8px 12px;
-            border-radius: 4px;
-            border: 1px solid #555;
-            background-color: #333;
-            color: white;
-            font-size: 14px;
-            cursor: pointer;
-            min-width: 200px;
-        }
-        #fileSelector:hover {
-            background-color: #444;
-        }
-        #fileSelector option {
-            background-color: #333;
-            padding: 8px;
-        }
-        /* Error message style */
-        .error-message {
-            position: fixed;
-            top: 1rem;
-            right: 1rem;
-            padding: 0.75rem 1.25rem;
-            margin-bottom: 1rem;
-            border: 1px solid transparent;
-            border-radius: 0.25rem;
-            color: #721c24;
-            background-color: #f8d7da;
-            border-color: #f5c6cb;
-            z-index: 1000;
-            max-width: 300px;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-            animation: slideIn 0.3s ease-out;
-        }
+    <link href="css/style.css" type="text/css" rel="stylesheet"/>
+    <link href="css/player.css" type="text/css" rel="stylesheet"/>
 
-        @keyframes slideIn {
-            from { transform: translateX(100%); opacity: 0; }
-            to { transform: translateX(0); opacity: 1; }
-        }
-    </style>
 </head>
-<body>
-    <div id="errorContainer" style="display: none;"></div>
+<body class="min-h-screen">
     <!-- Navigation Bar -->
     <nav class="nav-bar">
         <div class="logo">ASCII Art Studio</div>
@@ -106,6 +32,7 @@
     </nav>
 
     <div class="main">
+        <div id="errorContainer" style="display: none;"></div>
         <div id="player_frame">
             <div id="no_movie" title="No Movie Loaded" class="material-icons">web_asset_off</div>
             <canvas id="player">

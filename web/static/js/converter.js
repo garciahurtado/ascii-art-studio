@@ -277,6 +277,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
         // Show loading state and prepare result container
         uploadForm.parentElement.classList.add('hidden');
+
         if (result) {
             result.innerHTML = '';
             result.classList.remove('hidden');
@@ -300,45 +301,85 @@ document.addEventListener('DOMContentLoaded', function() {
 
         // Display original image immediately
         const originalImageUrl = URL.createObjectURL(file);
+        let response;  // Declare response here to make it accessible in catch
         displayOriginalImage(originalImageUrl);
 
         try {
-            const response = await fetch('/convert', {
+            // Send the POST request
+            response = await fetch('/convert', {
                 method: 'POST',
                 body: formData
             });
 
+            // First check if the response is ok (status in the range 200-299)
             if (!response.ok) {
-                let error;
+                // Try to parse the error response as JSON
+                let errorData;
                 try {
-                    const errorData = await response.json();
-                    error = errorData.error || 'Conversion failed';
+                    errorData = await response.json();
                 } catch (e) {
-                    const errorText = await response.text();
-                    error = errorText || 'Conversion failed';
+                    // If we can't parse JSON, use the status text
+                    throw new Error(`Server error: ${response.status} ${response.statusText}`);
                 }
-                throw new Error(error);
+                throw errorData;
             }
 
-            // Get the image blob from the response
+            // If we get here, the request was successful
             const imageBlob = await response.blob();
             const imageUrl = URL.createObjectURL(imageBlob);
-
-            // Display the converted image with slide reveal
             displayConvertedImage(imageUrl);
 
         } catch (error) {
-            console.error('Error:', error);
-            showError(error.message || 'An error occurred during conversion. Please try again.');
+            console.error('Conversion error:', error);
+
+            let errorMessage = 'An error occurred during conversion';
+
+            if (error instanceof Error) {
+                // Handle standard Error objects
+                errorMessage = error.message;
+            } else if (error && typeof error === 'object') {
+                // Handle error objects with validation errors
+                if (error.errors) {
+                    errorMessage = "There were validation errors:\n";
+                    for (const key in error.errors) {
+                        errorMessage += `${key}: ${Array.isArray(error.errors[key]) ?
+                            error.errors[key].join(', ') : error.errors[key]}\n`;
+                    }
+                } else if (error.detail) {
+                    errorMessage = error.detail;
+                } else if (error.message) {
+                    errorMessage = error.message;
+                }
+            } else if (response) {
+                // Try to get error from response if available
+                try {
+                    const errorData = await response.json();
+                    if (errorData.errors) {
+                        errorMessage = "There were validation errors:\n";
+                        for (const key in errorData.errors) {
+                            errorMessage += `${key}: ${Array.isArray(errorData.errors[key]) ?
+                                errorData.errors[key].join(', ') : errorData.errors[key]}\n`;
+                        }
+                    } else if (errorData.detail) {
+                        errorMessage = errorData.detail;
+                    }
+                } catch (e) {
+                    // If we can't parse JSON, use status text
+                    errorMessage = `Server error: ${response.status} ${response.statusText}`;
+                }
+            }
+
+            // Show the error to the user
+            showError(errorMessage, 'Conversion Error');
         }
     }
 
     /**
      * When we click on either of the columns or rows fields, we need to disable the other one
      */
-     function attachFieldListeners() {
+    function attachFieldListeners() {
 
-     }
+    }
 
     /**
      * Display the original uploaded image
@@ -514,9 +555,83 @@ document.addEventListener('DOMContentLoaded', function() {
 
     /**
      * Show error message to user
-     * @param {string} message - The error message to display
+     * @param {string|Error} error - The error message or Error object
+     * @param {string} [title='Error'] - The title of the error message
      */
-    function showError(message) {
-        showFeedback(message, true);
+    function showError(error, title = 'Error') {
+        const errorDiv = document.getElementById('error-message');
+        if (!errorDiv) {
+            console.error('Error message container not found');
+            return;
+        }
+
+        // Get the error message from Error object if needed
+        const errorMessage = error instanceof Error ? error.message : String(error);
+
+        // Log to console with styling
+        console.error(
+            `%c${title}:%c ${errorMessage}`,
+            'color: white; background: #dc3545; padding: 2px 8px; border-radius: 4px; font-weight: bold;',
+            'color: #dc3545;',
+        );
+
+        // Get the template and clone it
+        const template = document.getElementById('toast-template');
+        if (!template) {
+            console.error('Toast template not found');
+            return;
+        }
+
+        const toast = template.content.cloneNode(true);
+        const toastElement = toast.querySelector('.toast');
+        const toastId = 'toast-' + Date.now();
+
+        // Set the toast ID
+        toastElement.id = toastId;
+
+        // Set the title and message
+        const titleElement = toastElement.querySelector('.toast-title');
+        const bodyElement = toastElement.querySelector('.toast-body');
+
+        if (titleElement) titleElement.textContent = title;
+        if (bodyElement) bodyElement.innerHTML = errorMessage.replace(/\n/g, '<br>');
+
+        // Add close button handler
+        const closeButton = toastElement.querySelector('.toast-close');
+        if (closeButton) {
+            closeButton.addEventListener('click', () => {
+                hideToast(toastElement);
+            });
+        }
+
+        // Add to DOM
+        errorDiv.appendChild(toast);
+
+        // Auto-remove the toast after 8 seconds
+        const timeoutId = setTimeout(() => {
+            hideToast(toastElement);
+        }, 8000);
+
+        // Store timeout ID on element for cleanup
+        toastElement._timeoutId = timeoutId;
+    }
+
+    function hideToast(toastElement) {
+        if (!toastElement) return;
+
+        // Clear the auto-hide timeout
+        if (toastElement._timeoutId) {
+            clearTimeout(toastElement._timeoutId);
+        }
+
+        // Add fade-out animation
+        toastElement.style.animation = 'toast-fade-out 0.5s ease-in forwards';
+
+        // Remove from DOM after animation completes
+        setTimeout(() => {
+            if (toastElement && toastElement.parentNode) {
+                toastElement.parentNode.removeChild(toastElement);
+            }
+        }, 500);
     }
 });

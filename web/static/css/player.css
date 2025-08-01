@@ -1,0 +1,240 @@
+.nav-links a.active {
+    background-color: #83af4c;
+    color: rgb(32 32 25);
+}
+.nav-links a.active .material-icons {
+    color: #666666;
+}
+
+#no_movie {
+    position: absolute;
+    font-size: 128px;
+    display: flex;
+    width: 100%;
+    height: 100%;
+    align-items: center;
+    align-content: center;
+    justify-content: center;
+    flex-wrap: wrap;
+    opacity: 0.5;
+    z-index: -1;
+}
+
+canvas {
+    display: block;
+    margin: auto;
+    z-index: 100;
+}
+
+canvas#player, canvas#palette_canvas {
+    border:1px solid #A89765;
+}
+
+canvas#player {
+    background-color: rgba(25, 25, 25);
+    color: #888;
+}
+
+div#palette {
+    float: right;
+    position: absolute;
+    right: 0px;
+    padding: 6px;
+    background-color: #404038;
+    border-radius: 4px;
+    filter: drop-shadow(0 0 4px rgba(0, 0, 0, 32));
+    visibility: hidden;
+}
+
+canvas#palette_canvas {
+    background-color: #000000;
+}
+
+#player_frame {
+    border-radius: 10px;
+    padding: 8px;
+    background-color: #333;
+    margin: auto;
+    display:inline-block;
+    text-align:center;
+    position: relative;
+}
+
+/* --- Scrub bar --- */
+
+#bars {
+    width: 100%;
+    position:relative;
+}
+
+#load_bar, #prog_bar, #scrub_bar {
+    display: block;
+    background-color: #666666;
+    height: 5px;
+    width: 100%;
+    margin-top: 4px;
+    border-radius: 2px;
+}
+
+#prog_bar {
+    margin-top: -5px;
+    background-color: #f9a620;
+    float: left;
+    width: 0%;
+}
+
+#scrub_bar {
+    height: 9px;
+    background-color: transparent;
+    cursor: pointer;
+    margin-top: -7px;
+    margin-right: 8px;
+    z-index: 1000;
+    position: absolute;
+    width: 100%;
+}
+
+#playhead {
+    float: left;
+    height: 8px;
+    width: 8px;
+    position: absolute;
+    margin-top: -3px;
+    background-color: #f4aa03;
+    border: 2px solid #404038;
+    border-radius: 50% / 50%;
+}
+
+.container label.text-gray-700 {
+    color: #767664;
+}
+
+/* --- Playback Controls --- */
+
+.controls {
+    margin: auto;
+    display: block;
+    position: relative;
+    margin-top: 10px;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+.controls .tools {
+    margin-top: 10px;
+    float: right;
+}
+
+.controls button {
+    position: relative;
+    margin: 0;
+    padding: 0;
+    cursor: pointer;
+    background-color: transparent;
+    color: #767664;
+    border: none;
+    font-family: 'Material Icons';
+    font-size: 28px;
+    line-height: 1;
+    text-transform: none;
+    letter-spacing: normal;
+    word-wrap: normal;
+    white-space: nowrap;
+    direction: ltr;
+
+    /* Support for all WebKit browsers. */
+    -webkit-font-smoothing: antialiased;
+    /* Support for Safari and Chrome. */
+    text-rendering: optimizeLegibility;
+
+    /* Support for Firefox. */
+    -moz-osx-font-smoothing: grayscale;
+
+    /* Support for IE. */
+    font-feature-settings: 'liga';
+}
+
+.controls button:hover {
+    color: #cfd186;
+    left: 1px;
+}
+
+.controls button:active {
+    top: 1px !important;
+    color: #ffffff !important;
+}
+
+.controls button:active .material-icons {
+    color: rgb(118, 118, 100);
+}
+
+.controls button.large {
+    font-size: 36px;
+}
+
+.controls button.small {
+    font-size: 24px !important;
+    top: -6px;
+}
+
+.controls button:active {
+    color: #767659;
+}
+
+.controls button#pause {
+    top: -3px;
+}
+
+.controls button #play_button {
+    margin-left: -35px;
+    visibility: hidden;
+}
+
+.controls .frame_counter_div {
+    width: 100%;
+    display: block;
+    margin-left: auto;
+    margin-right: auto;
+    font-size: 12px;
+    font-family: Verdana;
+    color: #7a7a72;
+}
+.controls .frame_counter_div input {
+    font-family: monospace;
+    color: #7a7a72;
+    padding: 5px;
+    width: 50px;
+    font-size: 13px;
+    background-color: transparent;
+    display: inline;
+    position: relative;
+    border: none;
+}
+
+/* --- Movie Selector --- */
+
+.file-selector {
+    margin-right: 15px;
+}
+#fileSelector {
+    padding: 8px 12px;
+    border-radius: 4px;
+    border: 1px solid #555;
+    background-color: #333;
+    color: white;
+    font-size: 14px;
+    cursor: pointer;
+    min-width: 200px;
+}
+#fileSelector:hover {
+    background-color: #444;
+}
+#fileSelector option {
+    background-color: #333;
+    padding: 8px;
+}
+
+@keyframes slideIn {
+    from { transform: translateX(100%); opacity: 0; }
+    to { transform: translateX(0); opacity: 1; }
+}
