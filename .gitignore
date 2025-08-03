@@ -4,6 +4,15 @@
 resources/screenshots/*
 resources/source_video/*
 resources/source_images/*
+lib/datasets/ascii_c64/data/*
+lib/datasets/ascii_amstrad_cpc/data/*
+lib/datasets/ubuntu_mono/data/*
+lib/datasets/unscii_8x8/data/*
+mlruns/*
+mlartifacts/*
+
+# Output of cmd line tools
+bin/*.png
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
@@ -132,21 +141,10 @@ cython_debug/
 
 /logs/
 /data/
-/lib/datasets/ascii_amstrad_cpc/data/test/
-/lib/datasets/ascii_amstrad_cpc/data/train/
 /wandb/
-/models/
-/lib/datasets/ascii_amstrad_cpc/data/
-/training/images/in/
-/training/images/out/
-/lib/datasets/ascii_c64/data/old/
-/lib/datasets/ascii_c64/data/hold/
-/lib/datasets/ascii_c64/data/new/
-*/data/train/
-*/data/test/
-
-# Data files
-lib/datasets/**/data/
+/models/*
+/training/images/in/*
+/training/images/out/*
 
 # Web assets
 web/archive/
