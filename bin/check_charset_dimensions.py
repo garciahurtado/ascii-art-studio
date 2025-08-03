@@ -6,6 +6,9 @@ This script examines all PNG files in the character set directory and calculates
 the number of characters based on the image dimensions and character size.
 Character size is inferred from filenames (e.g., _8x16.png).
 
+The ultimate goal is to generate JSON files for each character set to be used as metadata, including the number of
+characters, character width and height.
+
 Usage:
     python check_charset.py path/to/charset.png  # Analyze specific file
     python check_charset.py --all                # Analyze all PNG files in the directory

@@ -12,13 +12,15 @@ import cv2 as cv
 
 
 class FeatureAsciiConverter(ShiftingAsciiConverter):
+    version = '0.2.1'
+
     """ASCII Converter that uses the HOG (histogram of oriented gradients) algorithm to calculate image differences"""
 
     def __init__(self, charset:Charset):
         super(FeatureAsciiConverter, self).__init__(charset)
 
         self.diff_full_threshold = 62
-        self.diff_empty_threshold = 3
+        self.diff_empty_threshold = 2
         # number of candidate matches to return on first pass, decrease to improve overall performance
         self.num_close_matches = 256 # 256 is best fidelity
         self.pixel_weights = None

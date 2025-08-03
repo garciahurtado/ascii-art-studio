@@ -1,9 +1,8 @@
 import os
 import pandas as pd
 from datasets.multi_dataset import MultiDataset
-from datasets.base_dataset import BaseDataset
 
-class AsciiAmstradCPC(MultiDataset, BaseDataset):
+class AsciiAmstradCPC(MultiDataset):
     def __init__(self, transform=None, target_transform=None, train=None, device=None):
         self.data_root = os.path.realpath( os.path.dirname(os.path.realpath(__file__)) + '/data/' )
         super().__init__(transform=transform, target_transform=target_transform, train=train, device=device)

@@ -136,3 +136,19 @@ class MultiDataset(Dataset):
     def get_file_and_offset_for_index(self, index):
         filename, offset = self.file_indices[index]
         return filename, offset
+
+    def get_class_counts(self, test=False):
+        if test:
+            filename = "amstrad-cpc_class_counts-test"
+        else:
+            filename = "amstrad-cpc_class_counts"
+
+        return self.get_class_counts_from_csv(filename)
+
+    def get_class_counts_from_csv(self, filename):
+        ''' Loads the class counts from a CSV file previously generated '''
+        filename = os.path.join(self.data_root, f"../{filename}.csv")
+        class_counts = pd.read_csv(filename, header=None)
+        class_counts = class_counts.to_numpy()
+
+        return class_counts.tolist()

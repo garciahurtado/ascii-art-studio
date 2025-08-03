@@ -195,7 +195,9 @@ def run_all_frames_ascii_thread(frame_buffer, video, max_frames=None):
         time.sleep(0.001)  # Let other threads work
 
         frame = cv.cvtColor(frame, cv.COLOR_RGB2BGR)
-        [ascii, contrast, color] = pipeline_ascii.run(frame)
+        ascii = pipeline_ascii.run(frame)
+        contrast = pipeline_ascii.contrast_img
+        color = pipeline_ascii.color
         charmap = pipeline_ascii.converter.match_char_map
 
         print("ASCII Frame decoded")

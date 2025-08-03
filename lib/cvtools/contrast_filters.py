@@ -11,6 +11,51 @@ Series of utility functions which perform various filters on images themed aroun
 
 
 def block_contrast(input_image, block_size, invert=False):
+    """
+        Applies adaptive contrast enhancement to an image by processing it in blocks.
+
+        This function divides the input image into non-overlapping blocks of the specified size,
+        applies Otsu's thresholding to each block to maximize contrast, and optionally inverts
+        the result. The operation is performed in-place on the input image for efficiency.
+
+        Parameters:
+        -----------
+        input_image : numpy.ndarray
+            Input grayscale image (2D array of uint8 values 0-255). The function will modify
+            this array in-place. If you need to preserve the original, make a copy before calling.
+
+        block_size : tuple of int
+            Size of the blocks to process, specified as (height, width) in pixels.
+            The image dimensions should be multiples of the block size to avoid partial blocks.
+
+        invert : bool, optional
+            If True, inverts the contrast of each block after processing.
+            Default is False.
+
+        Returns:
+        --------
+        numpy.ndarray
+            The modified input image with contrast-enhanced blocks.
+            Note: The input image is modified in-place, so this is the same array as input_image.
+
+        Notes:
+        ------
+        - Uses Otsu's thresholding method to automatically determine optimal threshold values
+          for each block, which works well for bimodal distributions of pixel intensities.
+        - The function is designed for efficiency by modifying the input in-place.
+        - For best results, use block sizes that are powers of 2 (e.g., 8x8, 16x16).
+        - The function assumes the input is a grayscale image (2D array).
+
+        Example:
+        --------
+        > import cv2
+        > image = cv2.imread('input.png', cv2.IMREAD_GRAYSCALE)
+        > # Process in 8x8 blocks
+        > result = block_contrast(image, (8, 8))
+        > # Process in 16x16 blocks with inversion
+        > result = block_contrast(image, (16, 16), invert=True)
+    """
+
     """WARNING: This function modifies the input image (for efficiency), so make sure you make a copy of it if you don't want that"""
     # rand_inv = Whether to randomly invert half of the blocks processed,
     # in order to provide a more balanced output for ML training

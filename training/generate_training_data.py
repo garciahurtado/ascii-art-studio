@@ -21,16 +21,22 @@ from cvtools.processing_pipeline import ProcessingPipeline
 
 IN_DIR = 'images/in/'
 OUT_DIR = 'images/out/'
-#WIDTH, HEIGHT = 496, 360  # For images
-#WIDTH, HEIGHT = 1048, 496  # For video 8x8 (and video stills)
-WIDTH, HEIGHT = 1168, 480  # For video 8x16
+
+# You have to do this in two passes, first for images, then for video
+# WIDTH, HEIGHT = 496, 360  # For images
+WIDTH, HEIGHT = 1048, 496  # For video 8x8 (and video stills)
+
+# For 8x16 charsets
+# WIDTH, HEIGHT = 1168, 480  # For video 8x16
 #WIDTH, HEIGHT = 584, 368  # half size 8x16
+
 all_used_chars = [] # For stats
 
-charset_name = 'ubuntu-mono_8x16.png'
-char_width, char_height = 8, 16
-charset = Charset(char_width, char_height)
+charset_name = 'c64.png'
+charset = Charset()
 charset.load(charset_name)
+char_width, char_height = charset.char_width, charset.char_height
+
 # charset.write('unscii_8x8-packed.png') # pack the character set (only needed once)
 
 def create_single_image(filename, index, csv=True, labels=False, skip_blank_rows=True, random_inverted=False, double_inverted=True):
@@ -59,19 +65,11 @@ def convert_image(in_img, labels, filename, is_inverted=False):
     converter = FeatureAsciiConverter(charset)
     converter.char_width = char_width
     converter.char_height = char_height
-    pipeline = ProcessingPipeline()
+
+    pipeline = ProcessingPipeline(brightness=100, contrast=3.0)
     pipeline.converter = converter
     pipeline.img_width = WIDTH
     pipeline.img_height = HEIGHT
-
-    # pipeline.contrast_img = cv.bitwise_not(pipeline.contrast_img)
-
-    # Half of the images will be randomly inverted. This will ensure that the characters in the inverted
-    # half of the charset are also represented.
-    # if random_inverted and random.choice([True, False]):
-    #     pipeline.run(in_img)
-    # else:
-    #     pipeline.run(in_img, invert=True)
 
     if not is_inverted:
         pipeline.run(in_img)

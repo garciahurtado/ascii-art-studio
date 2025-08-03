@@ -27,7 +27,9 @@ class Charset:
         self.chars = []
         self.pixel_histogram = None
         self.charset_img = None
+        self.filename = None
         self.hex_codes = None
+        self.inverted_included = False
 
         self.full_char = Character(np.full((char_height, char_width), 255, dtype=np.uint8))
         full_med = self.full_char.make_low_res(4)
@@ -131,6 +133,9 @@ class Charset:
                     self.hex_codes = all_json["hex_codes"]
                     if all_json["inverted_included"]:
                         self.hex_codes = self.hex_codes + self.hex_codes
+                        self.inverted_included = True
+                    else:
+                        self.inverted_included = False
         else:
             printc(f"!! No metadata file {json_file} found !!")
 

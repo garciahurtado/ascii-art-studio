@@ -5,6 +5,7 @@ resources/screenshots/*
 resources/source_video/*
 resources/source_images/*
 lib/datasets/ascii_c64/data/*
+lib/datasets/ascii_c64/data.hold/*
 lib/datasets/ascii_amstrad_cpc/data/*
 lib/datasets/ubuntu_mono/data/*
 lib/datasets/unscii_8x8/data/*
@@ -12,7 +13,7 @@ mlruns/*
 mlartifacts/*
 
 # Output of cmd line tools
-bin/*.png
+bin/test_images/*
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

@@ -19,4 +19,4 @@ class ProcessingPipelineAscii(ProcessingPipeline):
         self._run_extract_colors_from_mask(self.ascii)
         #self._run_final_resize
 
-        return [self.ascii, self.contrast_img, self.color]
+        return self.ascii

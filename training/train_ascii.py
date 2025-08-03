@@ -1,53 +1,81 @@
 import math
+import os
+import inspect
+import tempfile
 
 import numpy as np
-import os
-import sys
 
 from torch.utils.data import Subset
-
-import wandb
-
-from charset import Charset
-
-sys.path.append('../lib')
-
 from tqdm import tqdm
 
 import torch
 import torch.optim as optim
 import torch.nn as nn
 
-from datasets.ubuntu_mono import UbuntuMono
-from net.ascii_classifier_network import AsciiClassifierNetwork
+from charset import Charset
+from datasets.ascii_c64 import ascii_c64, AsciiC64
+from net.ascii_c64_network import AsciiC64Network
 from performance_monitor import PerformanceMonitor
 import datasets.data_utils as data_utils
 import pytorch.model_manager as models
+from mlflow_config import ml_log_params
+import mlflow as ml
+from datetime import datetime
 
-
-def train_model(num_labels, dataset_type, dataset_name, charset=None):
+def train_model(num_labels, dataset_type, dataset_name, charset):
     # Eliminate randomness to increase training reproducibility
-    torch.manual_seed(123456)
-    np.random.seed(123456)
-    random_state = 99
+    torch_rnd_seed = np_rnd_seed = 123456
+    torch.manual_seed(torch_rnd_seed)
+    np.random.seed(np_rnd_seed)
 
-    batch_size = 512
-    test_batch_size = batch_size * 10
+    char_width = charset.char_width
+    char_height = charset.char_height
 
     # Load datasets
-    trainset = data_utils.get_dataset(train=True, dataset_type=dataset_type, num_labels=num_labels, char_width=charset.char_width, char_height=charset.char_height)
-    #testset = data_utils.get_dataset(train=False, dataset_type=dataset_type, num_labels=num_labels)
+    trainset = data_utils.get_dataset(
+        train=True,
+        dataset_type=dataset_type,
+        num_labels=num_labels,
+        char_width=char_width,
+        char_height=char_height)
 
-    trainset, testset = data_utils.split_dataset(trainset, 0.5, random_state=random_state, charset_name=dataset_name)
+    testset = data_utils.get_dataset(
+        train=False,
+        dataset_type=dataset_type,
+        num_labels=num_labels,
+        char_width=char_width,
+        char_height=char_height)
+
+    # log basic training config
+    ml.log_params({
+        'torch_rnd_seed': torch_rnd_seed,
+        'np_rnd_seed': np_rnd_seed,
+        'num_labels': num_labels,
+        'dataset_name': dataset_name,
+        'char_width': char_width,
+        'char_height': char_height,
+        'charset_count': len(charset.chars),
+        'charset_inverted': charset.inverted_included,
+        'charset_filename': charset.filename
+    })
+
+    # Dataset split should only be done once at the start of project, and left stable, not every single run
+    # trainset, testset = data_utils.split_dataset(trainset, 0.5, random_state=random_state, charset_name=dataset_name)
+
+    batch_size = 1024
+    test_batch_size = batch_size * 5
+
     class_counts = trainset.get_class_counts()
     num_train_samples = len(trainset)
 
     steps_per_epoch = num_train_samples / batch_size
     decay_every_samples = 256 * 1000
 
-    params = {
+    train_params = {
         'batch_size': batch_size,
+        'test_batch_size': batch_size,
         'num_epochs': 10,
+        'num_labels': num_labels,
         'num_train_samples': num_train_samples,
         'steps_per_epoch': steps_per_epoch,
         'learning_rate': 0.0005,
@@ -59,7 +87,7 @@ def train_model(num_labels, dataset_type, dataset_name, charset=None):
 
     trainloader = torch.utils.data.DataLoader(
         trainset,
-        batch_size=batch_size * 2,
+        batch_size=batch_size,
         shuffle=True,
         num_workers=2,
         prefetch_factor=None,
@@ -75,46 +103,51 @@ def train_model(num_labels, dataset_type, dataset_name, charset=None):
         drop_last=True,
         worker_init_fn=data_utils.seed_init_fn)
 
-    train(class_counts, trainloader, testloader, params)
+    train(class_counts, trainloader, testloader, train_params, dataset_name)
 
 
-def train(class_counts, trainloader, testloader, params):
-    global models_path
+@ml_log_params
+def train(class_counts, trainloader, testloader, params, dataset_name):
     log_every = params['log_every']
     device = data_utils.get_device()
+
+    print(f"Training started on device: {device}")
 
     # Get class counts
     class_cardinality = len(class_counts)
     print(f"Found {class_cardinality} classes in dataset")
 
-    model = AsciiClassifierNetwork(num_labels=class_cardinality)
+    model = AsciiC64Network(num_labels=class_cardinality)
+    source_class_name = model.__class__.__name__
+    source_class_file = inspect.getfile(model.__class__)
     model.to(device)
+
+    model_dir = models.make_model_directory(dataset_name)
+    model_filename = models.get_model_filename(dataset_name, model_dir)
+
+    print(f"Trained model will be saved to: {model_filename}")
+
+    ml.log_params({
+        'model_path': model_dir,
+        'source_class_name': source_class_name,
+        'source_class_file': source_class_file
+    })
+
+    ml.log_artifact(source_class_file)  # Save the model source code
 
     # Initialize parameter weights:
     # https://stackoverflow.com/questions/49433936/how-to-initialize-weights-in-pytorch
     model.apply(weights_init_uniform_rule)
 
-    # Generate class weights
-    # class_weights = data_utils.create_class_weights(class_counts, mu=0.00015)
-    # class_weights = torch.tensor(class_weights, dtype=torch.float)
-    # class_weights.to(device)
+    # Generate class weights automatically
+    class_weights = data_utils.create_class_weights(class_counts, mu=0.00015)
+    class_weights = torch.tensor(class_weights, dtype=torch.float)
+    class_weights.to(device)
 
     # Loss function / optimizer / Learning rate scheduler
     criterion = nn.CrossEntropyLoss().cuda()
     optimizer = optim.Adam(model.parameters(), lr=params['learning_rate'])
     scheduler = optim.lr_scheduler.ExponentialLR(optimizer, params['decay_rate'])
-
-    # Logging
-    os.environ["WANDB_SILENT"] = "true"
-    wandb.login(key='e6533f84f309fe9d42fd1e3577f8ba162ed921c0')
-    wandb.init(
-        project='pytorch-ubuntu_mono_8x16',
-        entity='ghurtado',
-        config=params)
-
-    dataset_name = 'ubuntu_mono'
-    model_filename = models.generate_model_filename(dataset_name)
-    print(f"Saving model to: {model_filename}")
 
     # Add image embeddings
     # images, labels = select_n_random(trainset.data, trainset.targets, 1000)
@@ -126,7 +159,6 @@ def train(class_counts, trainloader, testloader, params):
     testloader_gen = iter(testloader)
 
     for epoch in range(params['num_epochs']):
-
         print()
         print(f"======== EPOCH {epoch}/{params['num_epochs']} ========")
         print()
@@ -135,7 +167,7 @@ def train(class_counts, trainloader, testloader, params):
         # Create a progress bar
         progress = tqdm(enumerate(trainloader, 0), total=steps_per_epoch, colour='green')
 
-        # Iterate through steps in this Epoch
+        # Training loop
         for step, [input, targets] in progress:
             model.train()
             perf.reset()
@@ -163,13 +195,11 @@ def train(class_counts, trainloader, testloader, params):
 
             # Is it time to log?
             if (global_step % log_every) == 0:
-                wandb_log({
-                    "Loss/train": loss.item(),
-                    "Accuracy/train": perf.get_accuracy()},
-                    global_step,
-                    epoch)
-
-                wandb_log({"Learning Rate": scheduler.get_last_lr()[0]}, global_step, epoch)
+                ml.log_metrics({
+                    "train/loss": loss.item(),
+                    "train/accuracy": perf.get_accuracy(),
+                    "learning_rate": scheduler.get_last_lr()[0]
+                }, step=global_step)
 
             if ((global_step + 1) % params['test_every_steps']) == 0:
                 # perform validation on test dataset
@@ -192,11 +222,10 @@ def train(class_counts, trainloader, testloader, params):
                 test_perf.add_predictions(output, test_targets)
                 test_accuracy = test_perf.get_accuracy()
 
-                wandb_log({
-                    "Loss/test": test_perf.get_avg_loss(),
-                    "Accuracy/test": test_accuracy},
-                    global_step, epoch)
-
+                ml.log_metrics({
+                    "test/loss": test_loss,
+                    "test/accuracy": test_accuracy
+                }, step=global_step)
 
             avg_loss = perf.get_avg_loss()
             desc = f"Step: {step} / Loss: "
@@ -206,20 +235,57 @@ def train(class_counts, trainloader, testloader, params):
 
             # end for each step in epoch
 
-        # At the end of every epoch, we save the model
-        models.save_model(model, model_filename)
+        # End of epoch - save checkpoint
+        metrics = {
+            'train_accuracy': perf.get_accuracy(),
+            'learning_rate': scheduler.get_last_lr()[0],
+            'test_accuracy': test_accuracy if 'test_accuracy' in locals() else 0.0,
+            'test_loss': test_loss.item() if 'test_loss' in locals() else float('inf')
+        }
 
-    # end for each epoch
+        checkpoint_path = models.save_checkpoint(
+            model=model,
+            optimizer=optimizer,
+            epoch=epoch,
+            metrics=metrics,
+            model_dir=model_dir,
+            max_keep=3  # Keep only 3 most recent checkpoints
+        )
 
+        print(f"Checkpoint saved to {checkpoint_path}")
+        ml.log_artifact(checkpoint_path)
+
+        # Log metrics
+        ml.log_metrics({
+            "epoch": epoch,
+            "epoch/train_accuracy": metrics['train_accuracy'],
+            "epoch/test_accuracy": metrics['test_accuracy'],
+            "epoch/test_loss": metrics['test_loss'],
+            "epoch/learning_rate": metrics['learning_rate']
+        }, step=global_step)
+
+    # End of training - save final model
     print('Finished Training')
 
-def wandb_log(params, step=None, epoch=None):
-    if step is not None:
-        params['batch'] = step
-    if epoch is not None:
-        params['epoch'] = epoch
-
-    wandb.log(params)
+    # Save the final model using MLflow
+    final_model_path = os.path.join(model_dir, 'final_model.pt')
+    torch.save({
+        'epoch': params['num_epochs'] - 1,
+        'model_state_dict': model.state_dict(),
+        'optimizer_state_dict': optimizer.state_dict(),
+        'metrics': metrics,
+        'timestamp': datetime.now().isoformat()
+    }, final_model_path)
+    
+    ml.log_artifact(final_model_path)
+    
+    # Log the final model
+    ml.pytorch.log_model(
+        pytorch_model=model,
+        artifact_path="final_model",
+        registered_model_name="ascii_c64_final_model",
+        pip_requirements=[f"torch=={torch.__version__}"]
+    )
 
 
 def weights_init_uniform_rule(model):
@@ -277,21 +343,31 @@ def calc_accuracy(model: torch.nn.Module, x: torch.Tensor, y: torch.Tensor) -> f
 
 
 if __name__ == "__main__":
-    charset_name = 'ubuntu-mono_8x16.png'
-    char_width, char_height = 8, 16
-    charset = Charset(char_width, char_height)
+    cur_dir = os.path.dirname(os.path.abspath(__file__))
+    root_dir = os.path.join(cur_dir, "../lib")
+
+    charset_name = 'c64.png'
+    charset = Charset()
     charset.load(charset_name)
+    char_width, char_height = charset.char_width, charset.char_height
 
-    num_classes = 734
-    dataset_type = UbuntuMono
-    dataset_name = 'ubuntu_mono'
+    # Output charset params
+    print(f"Charset Loaded: {charset_name}")
+    print(f"  char width: {char_width}")
+    print(f"  char height: {char_height}")
+    print(f"  count: {len(charset.chars)}")
 
-    """
-    data_utils.write_dataset_class_counts(
-        f'lib/datasets/{dataset_name}/data/{dataset_name}_class_counts',
-        num_classes,
-        dataset_type,
-        char_width=char_width,
-        char_height=char_height)
-    """
-    train_model(num_classes, dataset_type, dataset_name, charset=charset)
+    num_classes = len(charset.chars) * 2
+    dataset_type = AsciiC64
+    dataset_name = 'ascii_c64'
+
+    # """
+    # data_utils.write_dataset_class_counts(
+    #     f'{root_dir}/datasets/{dataset_name}/data/{dataset_name}_class_counts',
+    #     num_classes,
+    #     dataset_type,
+    #     char_width=char_width,
+    #     char_height=char_height)
+    # """
+
+    train_model(num_classes, dataset_type, dataset_name, charset)

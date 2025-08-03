@@ -72,7 +72,8 @@ class ProcessingPipeline():
 
         output_img = input_img
 
-        # Run them one at a time, passing the output of one method as the input to the next
+        # Run them one at a time, in the order they appear in the source code, passing the output of one method as the
+        # input to the next
         for step in steps:
             run_step = getattr(self, step)
             output_img = run_step(input_img)
@@ -105,9 +106,11 @@ class ProcessingPipeline():
 
 
     def _run_create_high_contrast(self, input_img):
-        self.contrast_img = filters.block_contrast(self.grayscale, (self.char_height*2, self.char_width*2), invert=self.invert)
+        # This used to be (char_height * 2, char_width * 2), but it was too much detail which was degrading the final
+        # output. After visually comparing 0.5x, 1x and 2x, 1x was the best.
+        block_size = (self.char_height, self.char_width)
+        self.contrast_img = filters.block_contrast(self.grayscale, block_size, invert=self.invert)
         return input_img
-
 
     def _run_denoise(self, input_img):
         contrast = self.contrast_img

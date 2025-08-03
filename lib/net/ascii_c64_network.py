@@ -2,20 +2,24 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-class AsciiClassifierNetwork(nn.Module):
+class AsciiC64Network(nn.Module):
     """ Try to keep this class as simple as possible, so that it will be easy to serialize and deserialize when we
     save it alongside the model weights """
     def __init__(self, num_labels):
-        super(AsciiClassifierNetwork, self).__init__()
+        super(AsciiC64Network, self).__init__()
 
-        # Assuming input images are single-channel (grayscale) of size 8x8
-        # First conv layer will output 64 channels, same spatial size due to padding
+        # Input: 1x8x8 (channels x height x width)
+        
+        # First conv layer: 1x8x8 -> 64x8x8 (same spatial size due to padding=1)
         self.conv1 = nn.Conv2d(1, 64, kernel_size=3, padding=1, stride=1)
-
-        # Second conv layer
+        
+        # Second conv layer: 64x8x8 -> 64x5x5
+        # (8 + 2*padding - kernel_size) // stride + 1 = (8 + 4 - 3) // 2 + 1 = 5
         self.conv2 = nn.Conv2d(64, 64, kernel_size=3, padding=2, stride=2)
-
-        self.fc1 = nn.Linear(2880, 1024)
+        
+        # Calculate the size for the first fully connected layer
+        # After conv2: 64 channels * 5 * 5 = 1600
+        self.fc1 = nn.Linear(1600, 1024)  # Changed from 2880 to 1600
         self.fc1_norm = nn.BatchNorm1d(1024)
         #self.dropout1 = nn.Dropout(0.2)
 
@@ -24,19 +28,18 @@ class AsciiClassifierNetwork(nn.Module):
 
     def forward(self, x):
         # Convolution and pooling layers
-        x = F.relu(self.conv1(x))
-        x = F.relu(self.conv2(x))
+        x = F.relu(self.conv1(x))  # 1x8x8 -> 64x8x8
+        x = F.relu(self.conv2(x))  # 64x8x8 -> 64x5x5
 
         # Flatten the output for the fully connected layer
-        x = torch.flatten(x, 1)
+        x = torch.flatten(x, 1)  # 64x5x5 -> 1600
 
         # Fully connected layers with BatchNorm and Dropout
         x = self.fc1_norm(self.fc1(x))
         x = F.relu(x)
         #x = self.dropout1(x)
 
-        # No need for an activation function here because
-        # F.log_softmax will be applied afterwards
+        # Output layer
         x = self.fc2(x)
 
         # Applying log_softmax to get log-probabilities

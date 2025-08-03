@@ -9,7 +9,8 @@ from cvtools.processing_pipeline_color import ProcessingPipelineColor
 
 def convert_image(image_path, output_path, charset, img_height=None, img_width=None):
     """"
-    This converter / encoder takes a single image as input and converts it to a CPEG file.
+    This converter / encoder takes a single image as input and converts it into a single frame to include in a CPEG
+    video file.
     Note: This encoder currently hardcodes the character size to 8x16
     """
     image = cv.imread(image_path)
@@ -32,7 +33,9 @@ def convert_image(image_path, output_path, charset, img_height=None, img_width=N
     max_palette_frames = 30  # Change palette after n frames
     palette_frame_count = 0  # Keep track of last palette change
 
-    [ascii, contrast, color] = pipeline_ascii.run(image)
+    ascii = pipeline_ascii.run(image)
+    contrast = pipeline_ascii.contrast_img
+    color = pipeline_ascii.color
     charmap = pipeline_ascii.converter.match_char_map
 
     print(f"ASCII charmap generated: {charmap.shape[0]} x {charmap.shape[1]}")
@@ -61,7 +64,7 @@ def create_encoder(binary_output_file, charset, resolution):
 
 if __name__ == '__main__':
     image_path = 'resources/images/garcia-retrato.png'
-    output_path = 'resources/cpeg/garcia-retrato.cpeg'
+    output_path = '../resources/cpeg/garcia-retrato.cpeg'
     out_width, out_height = 640, 368
 
     # Load a charset

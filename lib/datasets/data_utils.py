@@ -7,6 +7,8 @@ import pandas as pd
 import torch
 from sklearn.model_selection import train_test_split
 import torchvision.transforms as transforms
+from torch.utils.data import Dataset
+
 from datasets.ascii_subset import AsciiSubset
 
 
@@ -96,9 +98,137 @@ def calculate_class_weights(class_counts):
     class_weights = class_weights / torch.sum(class_weights) * len(class_counts)  # Normalize weights
 
     # Apply class weighting
-   # class_weights = 1 / torch.tensor([effective_num]) ** mu
+    # class_weights = 1 / torch.tensor([effective_num]) ** mu
     return class_weights
 
+def write_dataset_class_counts(path, num_classes, dataset_type, char_width=8, char_height=8):
+    # Extract class counts for class weights
+
+    print("Evaluating class counts... This may take some time")
+
+    outfile = f"{path}.csv"
+    outdir = os.path.dirname(outfile)
+    if not os.access(outdir, os.W_OK):
+        raise Exception(f"Cannot write to {outfile}. Permission denied")
+
+    dataset = get_dataset(num_labels=num_classes, dataset_type=dataset_type, char_width=char_width, char_height=char_height)
+    counts = get_class_counts(dataset, num_classes)
+    pd.DataFrame(counts).to_csv(outfile, header=False)
+
+    print(f"FINISHED: Class counts written to {outfile}")
+
+    # counts = data_utils.get_class_counts(get_dataset(train=False))
+    # pd.DataFrame(counts).to_csv(f"{path}-test.csv", header=False)
+
+def get_dataset_details(dataset):
+    """
+    Generate a comprehensive report about the dataset's properties and statistics.
+    
+    Args:
+        dataset: A PyTorch Dataset object to analyze
+        
+    Returns:
+        dict: A dictionary containing detailed information about the dataset
+    """
+    if not hasattr(dataset, '__len__') or not hasattr(dataset, '__getitem__'):
+        raise ValueError("Input must be a valid PyTorch Dataset")
+    
+    details = {
+        'basic_info': {},
+        'class_distribution': {},
+        'data_statistics': {},
+        'shape_info': {}
+    }
+    
+    # Basic dataset information
+    details['basic_info']['num_samples'] = len(dataset)
+    details['basic_info']['dataset_type'] = type(dataset).__name__
+    
+    # Get a sample to determine data shapes and types
+    try:
+        sample = dataset[0]
+        if isinstance(sample, (tuple, list)) and len(sample) >= 2:
+            # Common case: (data, target) tuple
+            data, target = sample[0], sample[1]
+            details['shape_info']['input_shape'] = str(tuple(data.shape) if hasattr(data, 'shape') else 'unknown')
+            details['shape_info']['target_shape'] = str(tuple(target.shape) if hasattr(target, 'shape') else 'unknown')
+            details['shape_info']['input_dtype'] = str(data.dtype) if hasattr(data, 'dtype') else type(data).__name__
+            details['shape_info']['target_dtype'] = str(target.dtype) if hasattr(target, 'dtype') else type(target).__name__
+        else:
+            details['shape_info']['sample_type'] = type(sample).__name__
+    except Exception as e:
+        details['shape_info']['error'] = f"Could not get sample: {str(e)}"
+    
+    # Get class distribution if possible
+    if hasattr(dataset, 'get_class_counts'):
+        try:
+            class_counts = dataset.get_class_counts()
+            class_counts_tensor = torch.tensor(class_counts, dtype=torch.float32)  # Convert to tensor for calculations
+            details['class_distribution']['num_classes'] = len(class_counts)
+            details['class_distribution']['samples_per_class'] = class_counts
+            details['class_distribution']['min_samples'] = int(class_counts_tensor.min())
+            details['class_distribution']['max_samples'] = int(class_counts_tensor.max())
+            details['class_distribution']['mean_samples'] = float(class_counts_tensor.mean())
+            details['class_distribution']['std_samples'] = float(class_counts_tensor.std())
+            
+            # Calculate class imbalance ratio
+            min_samples = details['class_distribution']['min_samples']
+            if min_samples > 0:
+                imbalance_ratio = details['class_distribution']['max_samples'] / min_samples
+                details['class_distribution']['imbalance_ratio'] = float(imbalance_ratio)
+        except Exception as e:
+            details['class_distribution']['error'] = f"Could not compute class distribution: {str(e)}"
+    
+    # Additional dataset-specific properties
+    for attr in ['char_width', 'char_height', 'num_labels']:
+        if hasattr(dataset, attr):
+            details['basic_info'][attr] = getattr(dataset, attr)
+    
+    return details
+
+def print_dataset_details(dataset):
+    """
+    Print a formatted summary of the dataset's properties and statistics.
+    
+    Args:
+        dataset: A PyTorch Dataset object to analyze and print details for
+    """
+    details = get_dataset_details(dataset)
+    
+    # Print basic information
+    print("\n" + "="*50)
+    print(f"{'DATASET SUMMARY':^50}")
+    print("="*50)
+    
+    # Print basic info
+    print("\nBasic Information:")
+    print("-" * 50)
+    for key, value in details['basic_info'].items():
+        print(f"{key.replace('_', ' ').title()}: {value}")
+    
+    # Print shape info if available
+    if details['shape_info']:
+        print("\nShape Information:")
+        print("-" * 50)
+        for key, value in details['shape_info'].items():
+            if not key.startswith('error'):
+                print(f"{key.replace('_', ' ').title()}: {value}")
+    
+    # Print class distribution if available
+    if 'class_distribution' in details and details['class_distribution']:
+        dist = details['class_distribution']
+        print("\nClass Distribution:")
+        print("-" * 50)
+        if 'error' in dist:
+            print(f"Error: {dist['error']}")
+        else:
+            print(f"Number of classes: {dist.get('num_classes', 'N/A')}")
+            print(f"Samples per class: {dist.get('min_samples', 'N/A')} (min) - {dist.get('max_samples', 'N/A')} (max)")
+            if 'imbalance_ratio' in dist:
+                print(f"Class imbalance ratio: {dist['imbalance_ratio']:.1f}x")
+    
+    print("\n" + "="*50 + "\n")
+    return details
 
 def split_dataset(dataset, test_split=0.2, random_state=0, charset_name=None):
     train_idx, test_idx = train_test_split(list(range(len(dataset))), test_size=test_split, random_state=random_state)
@@ -106,8 +236,7 @@ def split_dataset(dataset, test_split=0.2, random_state=0, charset_name=None):
     testset = AsciiSubset(dataset, test_idx, charset_name, dataset.data_root)
     return trainset, testset
 
-
-def get_dataset(train=True, dataset_type=None, char_height=8, char_width=8, num_labels=None):
+def get_dataset(train=True, dataset_type: Dataset=None, char_height=8, char_width=8, num_labels=None):
     # Skip the OneHot transform as long as we are using CrossEntropyLoss
     # transform = transforms.Compose(
     #     [transforms.ToTensor()])
@@ -115,27 +244,19 @@ def get_dataset(train=True, dataset_type=None, char_height=8, char_width=8, num_
     # target_transform = transforms.Compose(
     #     [OneHot(num_labels)])
 
-
     dataset = dataset_type(
         train=train,
         device=get_device())
 
     dataset.char_width = char_width
     dataset.char_height = char_height
+
+    print(f"Dataset: {dataset_type.__name__} loaded (Train: {train})")
+    print("-" * 50)
+    print_dataset_details(dataset)
+    print("-" * 50)
+
     return dataset
-
-
-def write_dataset_class_counts(path, num_classes, dataset_type, char_width=8, char_height=8):
-    # Extract class counts for class weights
-
-    print("Evaluating class counts... This may take some time")
-    dataset = get_dataset(num_labels=num_classes, dataset_type=dataset_type, char_width=char_width, char_height=char_height)
-    counts = get_class_counts(dataset, num_classes)
-    pd.DataFrame(counts).to_csv(f"{path}.csv", header=False)
-
-    # counts = data_utils.get_class_counts(get_dataset(train=False))
-    # pd.DataFrame(counts).to_csv(f"{path}-test.csv", header=False)
-
 
 def seed_init_fn(x):
     seed = 12345 + x
@@ -143,7 +264,6 @@ def seed_init_fn(x):
     random.seed(seed)
     torch.manual_seed(seed)
     return
-
 
 def get_device():
     if torch.cuda.is_available():
