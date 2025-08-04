@@ -16,7 +16,7 @@ MODEL_FILENAME = 'ascii_c64-Mar17_21-33-46'
 MODEL_CHARSET = 'ascii_c64'
 PALETTE_NAME = 'atari.png'
 
-def convert_image(input_img, charset: Charset, img_width, img_height, converter_class=None):
+def convert_image(input_img, charset: Charset, img_width, img_height, converter_class=None, black_white=False):
     """"
     This converter takes an image path and converts it to a PNG file using ASCII character replacement.
     """
@@ -32,10 +32,13 @@ def convert_image(input_img, charset: Charset, img_width, img_height, converter_
     pipeline_ascii.img_width = img_width
     pipeline_ascii.img_height = img_height
 
-    _ = pipeline_ascii.run(image)
+    img_color = pipeline_ascii.run(image)
     ascii_img = pipeline_ascii.ascii
 
-    return _        # DEBUG - we are returning the full color image for now
+    if black_white:
+        return ascii_img
+    else:
+        return img_color
 
 def init_converter(charset: Charset, converter_class=None):
     """Initialize the ASCII converter with C64 settings.
@@ -65,6 +68,8 @@ def init_converter(charset: Charset, converter_class=None):
             )
         else:
             converter = class_def(charset)
+            converter.char_width = charset.char_width
+            converter.char_height = charset.char_height
 
     except NameError as e:
         raise Exception(f"Unable to find converter: {converter_class}.\n{e}")
@@ -104,6 +109,11 @@ if __name__ == '__main__':
         type=str,
         help='Name of the ASCII converter to use.',
         default='FeatureAsciiConverter')
+    parser.add_argument(
+        '--bw',
+        help='Output black & white image only, do not colorize.',
+        action='store_true',
+    )
 
     args = parser.parse_args()
 
@@ -113,6 +123,7 @@ if __name__ == '__main__':
     output_img = input_img.split('.')[:-1][0]
     output_img = output_img + '_ascii.png'
 
+    black_white = args.bw
     width = args.width
     height = args.height
     charset_name = args.charset
@@ -122,7 +133,7 @@ if __name__ == '__main__':
     charset = Charset()
     charset.load(charset_name)
 
-    output_img_bin = convert_image(input_img, charset, img_width=width, img_height=height, converter_class=converter)
+    output_img_bin = convert_image(input_img, charset, img_width=width, img_height=height, converter_class=converter, black_white=black_white)
 
     # Save the final image
     cv.imwrite(output_img, output_img_bin)

@@ -129,13 +129,13 @@ class Charset:
         if os.path.exists(json_file):
             with open(json_file, 'r') as file:
                 all_json = json.load(file)
+                if "inverted_included" in all_json.keys():
+                    self.inverted_included = all_json["inverted_included"]
+
                 if "hex_codes" in all_json.keys():
                     self.hex_codes = all_json["hex_codes"]
-                    if all_json["inverted_included"]:
+                    if self.inverted_included:
                         self.hex_codes = self.hex_codes + self.hex_codes
-                        self.inverted_included = True
-                    else:
-                        self.inverted_included = False
         else:
             printc(f"!! No metadata file {json_file} found !!")
 

@@ -3,6 +3,13 @@ import functools
 import inspect
 
 import torch
+import logging
+
+logger = logging.getLogger("mlflow")
+
+# Set the desired log level
+# For example, to set the log level to DEBUG:
+logger.setLevel(logging.DEBUG)
 
 def ml_log_params(func):
     """

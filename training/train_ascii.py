@@ -22,11 +22,15 @@ from mlflow_config import ml_log_params
 import mlflow as ml
 from datetime import datetime
 
+PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+
 def train_model(num_labels, dataset_type, dataset_name, charset):
     # Eliminate randomness to increase training reproducibility
     torch_rnd_seed = np_rnd_seed = 123456
     torch.manual_seed(torch_rnd_seed)
     np.random.seed(np_rnd_seed)
+
+    ml.start_run()
 
     char_width = charset.char_width
     char_height = charset.char_height
@@ -54,10 +58,13 @@ def train_model(num_labels, dataset_type, dataset_name, charset):
         'dataset_name': dataset_name,
         'char_width': char_width,
         'char_height': char_height,
+        'charset_filename': charset.filename,
         'charset_count': len(charset.chars),
         'charset_inverted': charset.inverted_included,
-        'charset_filename': charset.filename
     })
+
+    charset_file = str(os.path.join(charset.CHARSETS_DIR, charset.filename))
+    ml.log_artifact(charset_file)   # Save the charset used during training
 
     # Dataset split should only be done once at the start of project, and left stable, not every single run
     # trainset, testset = data_utils.split_dataset(trainset, 0.5, random_state=random_state, charset_name=dataset_name)
@@ -103,11 +110,11 @@ def train_model(num_labels, dataset_type, dataset_name, charset):
         drop_last=True,
         worker_init_fn=data_utils.seed_init_fn)
 
-    train(class_counts, trainloader, testloader, train_params, dataset_name)
+    train(class_counts, trainloader, testloader, train_params, dataset_name, charset)
 
 
-@ml_log_params
-def train(class_counts, trainloader, testloader, params, dataset_name):
+# @ml_log_params
+def train(class_counts, trainloader, testloader, params, dataset_name, charset: Charset):
     log_every = params['log_every']
     device = data_utils.get_device()
 
@@ -116,6 +123,7 @@ def train(class_counts, trainloader, testloader, params, dataset_name):
     # Get class counts
     class_cardinality = len(class_counts)
     print(f"Found {class_cardinality} classes in dataset")
+    print(f"Charset {charset.filename} has {len(charset.chars)} chars.")
 
     model = AsciiC64Network(num_labels=class_cardinality)
     source_class_name = model.__class__.__name__
@@ -132,7 +140,6 @@ def train(class_counts, trainloader, testloader, params, dataset_name):
         'source_class_name': source_class_name,
         'source_class_file': source_class_file
     })
-
     ml.log_artifact(source_class_file)  # Save the model source code
 
     # Initialize parameter weights:
@@ -255,9 +262,8 @@ def train(class_counts, trainloader, testloader, params, dataset_name):
         print(f"Checkpoint saved to {checkpoint_path}")
         ml.log_artifact(checkpoint_path)
 
-        # Log metrics
+        # Log epoch metrics
         ml.log_metrics({
-            "epoch": epoch,
             "epoch/train_accuracy": metrics['train_accuracy'],
             "epoch/test_accuracy": metrics['test_accuracy'],
             "epoch/test_loss": metrics['test_loss'],
@@ -282,7 +288,7 @@ def train(class_counts, trainloader, testloader, params, dataset_name):
     # Log the final model
     ml.pytorch.log_model(
         pytorch_model=model,
-        artifact_path="final_model",
+        name="final_model",
         registered_model_name="ascii_c64_final_model",
         pip_requirements=[f"torch=={torch.__version__}"]
     )

@@ -16,7 +16,7 @@ def extract_colors_from_mask(color_img, mask, contrast_mask, block_size, invert=
     num_cols = width / block_width
 
     if(num_rows != int(num_rows) or num_cols != int(num_cols)):
-        raise f"The image ({width}x{height}) is not divisible by the character size ({block_width}x{block_height})"
+        raise ValueError(f"The image ({width}x{height}) is not divisible by the character size ({block_width}x{block_height})")
 
     num_rows = int(num_rows)
     num_cols = int(num_cols)

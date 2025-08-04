@@ -4,10 +4,10 @@ import csv
 import glob
 import math
 import os
-import random
-
+import argparse
 import arrow
 from collections import Counter
+import random
 
 import cv2 as cv
 import numpy as np
@@ -20,15 +20,22 @@ from ascii import FeatureAsciiConverter
 from cvtools.processing_pipeline import ProcessingPipeline
 
 IN_DIR = 'images/in/'
+IN_DIR_DATA = 'tmp_data/'
 OUT_DIR = 'images/out/'
 
-# You have to do this in two passes, first for images, then for video
+# You have to generate the training data in two passes, first for images, then for video
 # WIDTH, HEIGHT = 496, 360  # For images
-WIDTH, HEIGHT = 1048, 496  # For video 8x8 (and video stills)
+WIDTH, HEIGHT = 384, 424  # For images (joker)
 
-# For 8x16 charsets
+# Ideally the dimensions would be automatically determined from the input image like so:
+
+
+# half size will produce 25% the number of training examples as before
+# WIDTH, HEIGHT = 512, 248  # For video 8x8 (and video stills)
+
+# For 8x16 charsets only:
 # WIDTH, HEIGHT = 1168, 480  # For video 8x16
-#WIDTH, HEIGHT = 584, 368  # half size 8x16
+# WIDTH, HEIGHT = 584, 368  # half size 8x16
 
 all_used_chars = [] # For stats
 
@@ -39,7 +46,7 @@ char_width, char_height = charset.char_width, charset.char_height
 
 # charset.write('unscii_8x8-packed.png') # pack the character set (only needed once)
 
-def create_single_image(filename, index, csv=True, labels=False, skip_blank_rows=True, random_inverted=False, double_inverted=True):
+def create_single_image(filename, index, out_min_width, out_min_height, out_max_width, out_max_height, export_csv=True, color_only=False, labels=False, double_inverted=True):
 
     if os.path.isfile(filename):
         print(f'Processing {filename}...')
@@ -47,47 +54,88 @@ def create_single_image(filename, index, csv=True, labels=False, skip_blank_rows
         in_img = cv.imread(filename)
 
         out_filename = f"{index:06d}"
-        convert_image(in_img, labels, out_filename)
+        convert_image(in_img, labels, out_filename, out_min_width, out_min_height, out_max_width, out_max_height, export_csv=export_csv, color_only=color_only)
 
         if double_inverted:
             out_filename = f"{index:06d}-inv"
-            convert_image(in_img, labels, out_filename, is_inverted=True)
+            convert_image(in_img, labels, out_filename, out_min_width, out_min_height, out_max_width, out_max_height, export_csv=export_csv, color_only=color_only, is_inverted=True)
 
         return True
     else:
         return False
 
 
-def convert_image(in_img, labels, filename, is_inverted=False):
+def adjust_img_size(in_img_width, in_img_height, out_min_width, out_min_height, out_max_width, out_max_height):
+    """
+    Take the *smallest* dimension of the input image and match it to the equivalent dimension of the output image. Calculate
+    the aspect ratio of the input image, and use that ratio to calculate the other dimension.
+    This should minimize letterboxing during resizing, and work for both portrait and landscape images, without having to manually
+    specify different output dimensions for each aspect ratio.
+    """
+    img_aspect_ratio = in_img_width / in_img_height
+
+    if in_img_width < in_img_height:    # Portrait
+        new_width = out_min_width
+        new_height = int(new_width / img_aspect_ratio)
+        if new_height < out_min_height:
+            new_height = out_min_height
+            new_width = int(new_height * img_aspect_ratio)
+        elif new_height > out_max_height:
+            new_height = out_max_height
+            new_width = int(new_height * img_aspect_ratio)
+
+    else:                               # Landscape
+        new_height = out_min_height
+        new_width = int(new_height * img_aspect_ratio)
+        if new_width < out_min_width:
+            new_height = int(new_width / img_aspect_ratio)
+            new_width = out_min_width
+        elif new_width > out_max_width:
+            new_width = out_max_width
+            new_height = int(new_width / img_aspect_ratio)
+
+    # Adjust to nearest multiple of 8
+    new_height = math.ceil(new_height / 8) * 8
+    new_width = math.ceil(new_width / 8) * 8
+
+    return new_width, new_height
+
+
+def convert_image(in_img, labels, filename, out_min_width, out_min_height, out_max_width, out_max_height, export_csv=True, color_only=False, is_inverted=False):
+    out_file_color = OUT_DIR + f'{filename}-color.png'
     out_file_contrast = OUT_DIR + f'{filename}-contrast.png'
     out_file_ascii = OUT_DIR + f'{filename}-ascii.png'
 
-    converter = FeatureAsciiConverter(charset)
-    converter.char_width = char_width
-    converter.char_height = char_height
+    in_img_width, in_img_height = in_img.shape[1], in_img.shape[0]
+    out_min_width, out_min_height = adjust_img_size(in_img_width, in_img_height, out_min_width, out_min_height, out_max_width, out_max_height)
 
+    converter = FeatureAsciiConverter(charset)
     pipeline = ProcessingPipeline(brightness=100, contrast=3.0)
     pipeline.converter = converter
-    pipeline.img_width = WIDTH
-    pipeline.img_height = HEIGHT
+    pipeline.img_width = out_min_width
+    pipeline.img_height = out_min_height
 
-    if not is_inverted:
-        pipeline.run(in_img)
-    else:
-        pipeline.run(in_img, invert=True)
+    final_img = pipeline.run(in_img, invert=is_inverted)
+
+    # Save the final color image
+    cv.imwrite(out_file_color, final_img)
+    print(f'> {out_file_color} created')
+
+    if color_only:
+        return
 
     # Save the high contrast image
     cv.imwrite(out_file_contrast, pipeline.contrast_img)
-    print(f'{out_file_contrast} created')
+    print(f'> {out_file_contrast} created')
 
     # Save the ASCII converted image, as text
     cv.imwrite(out_file_ascii, pipeline.ascii)
-    print(f'{out_file_ascii} created')
+    print(f'> {out_file_ascii} created')
 
     # Collect stats for histogram of per character uses
     all_used_chars.extend(converter.used_chars)
 
-    if csv:
+    if export_csv:
         csv_data = converter.get_csv_data()
         out_file_data = OUT_DIR + f'{filename}-ascii-data.txt'
         data_file = open(out_file_data, "w")
@@ -105,26 +153,37 @@ def convert_image(in_img, labels, filename, is_inverted=False):
     if labels:
         return converter.get_label_data()
 
-def create_training_images(csv=True, start_index=0):
+def create_training_data(out_min_width, out_min_height, out_max_width, out_max_height, export_csv=True, color_only=False, start_index=0, double_inverted=True):
     """
-    :Bool csv: Whether to create CSV files of the ASCII characters used in each image
+    :Bool export_csv: Whether to create CSV files of the ASCII characters used in each image
     :int start_index: Pass something other than zero to avoid filenaming conflicts
     :rtype: None
     """
-    entries = os.listdir(IN_DIR)
-    num_threads = 16
+    all_files = os.listdir(IN_DIR)
+
+    # only process .png all_files
+    all_files = [entry for entry in all_files if entry.endswith('.png')]
+    num_img = len(all_files)
+
+    if num_img < 1:
+        raise ValueError(f'No .PNG images found in {IN_DIR}')
+
+    # Don't use more threads than the number of images
+    num_threads = 16 if num_img > 16 else num_img
+
     start_time = arrow.utcnow()
+    labels = False
 
     with Pool(num_threads) as p:
         all_params = []
 
-        for index, file in enumerate(entries):
+        for index, file in enumerate(all_files):
             full_path = os.path.join(IN_DIR, file)
 
             if os.path.isdir(full_path):
                 continue # Skip directories
 
-            params = [full_path, start_index + index, csv]
+            params = [full_path, start_index + index, out_min_width, out_min_height, out_max_width, out_max_height, export_csv, color_only, labels, double_inverted]
             all_params.append(params)
 
         p.starmap(create_single_image, all_params)
@@ -132,70 +191,11 @@ def create_training_images(csv=True, start_index=0):
     end_time = arrow.utcnow()
     time_diff = end_time - start_time
     num_entries = len(all_params)
-    print(f"{num_entries} images processed by {num_threads} threads in: {time_diff}")
+    print(f"*** DONE: {num_entries} images processed by {num_threads} threads in: {time_diff} ***")
 
     # Display character histogram
-    show_hist = False
-    if(show_hist):
-        counts = Counter(all_used_chars)
+    # show_histogram(all_used_chars)
 
-        plt.rc('axes', titlesize=8)
-
-        cols, rows = 18, 18
-        fig, axs = plt.subplots(rows, cols, figsize=(16,8))
-        plt.subplots_adjust(left=None, bottom=-1)
-
-        row_id = col_id = 0
-        bar_color = (0, 1, 0, 1)
-
-        for (char, count) in counts.items():
-            char_img = cv.cvtColor(char.img, cv.COLOR_GRAY2RGB)
-
-            axs[row_id, col_id].bar([0], count, color=bar_color)
-            axs[row_id, col_id].set_title(f'#{char.index}')
-            axs[row_id, col_id].imshow(char_img, cmap='gray', interpolation='nearest')
-            axs[row_id, col_id].get_xaxis().set_visible(False)
-            axs[row_id, col_id].get_yaxis().set_visible(False)
-
-            col_id += 1
-
-            if(col_id >= cols):
-                col_id = 0
-                row_id += 1
-
-        plt.show()
-
-
-def make_charset_index_table(charset):
-    """Generate an image showing each character and their corresponding index in the charset they were loaded from.
-    This is needed for model training, as those indexes will become the labels"""
-    char_width, char_height = charset.char_width, charset.char_height
-    size = (len(charset) * char_height, char_width * 5)
-    img = np.zeros(size, dtype=np.uint8)
-
-    for i, character in enumerate(charset):
-        img[i * char_height: (i+1) * char_height, 0:char_width] = character.img
-        color = (255,255,255)
-        cv.putText(img, str(character.index), (char_width + 3, ((i+1) * char_height) - 1), cv.FONT_HERSHEY_PLAIN, .75, color)
-
-    return img
-
-def make_charset_sprite(charset):
-    '''Generate a single sprite containing the images of every character in the charset, to be used as image labels for
-    Tensorboard'''
-
-    char_width, char_height = 8, 16
-    cols = math.ceil(math.sqrt(len(charset)))
-    size = (cols * char_height, cols * char_width)
-    img = np.zeros(size, dtype=np.uint8)
-
-    for i, character in enumerate(charset):
-        col = i % cols
-        row = math.floor(i / cols)
-
-        img[row * char_height : (row+1) * char_height, col * char_width : (col + 1) * char_width] = character.img
-
-    return img
 
 def make_histogram():
     '''Given a list of datafiles, create a histogram of the label frequency, to identify labels with low representation'''
@@ -253,6 +253,139 @@ def make_histogram():
     plt.title('Label Frequency')
     plt.show()
 
+def show_histogram(all_used_chars):
+    counts = Counter(all_used_chars)
+
+    plt.rc('axes', titlesize=8)
+
+    cols, rows = 18, 18
+    fig, axs = plt.subplots(rows, cols, figsize=(16,8))
+    plt.subplots_adjust(left=None, bottom=-1)
+
+    row_id = col_id = 0
+    bar_color = (0, 1, 0, 1)
+
+    for (char, count) in counts.items():
+        char_img = cv.cvtColor(char.img, cv.COLOR_GRAY2RGB)
+
+        axs[row_id, col_id].bar([0], count, color=bar_color)
+        axs[row_id, col_id].set_title(f'#{char.index}')
+        axs[row_id, col_id].imshow(char_img, cmap='gray', interpolation='nearest')
+        axs[row_id, col_id].get_xaxis().set_visible(False)
+        axs[row_id, col_id].get_yaxis().set_visible(False)
+
+        col_id += 1
+
+        if col_id >= cols:
+            col_id = 0
+            row_id += 1
+
+    plt.show()
+
+def make_charset_index_table(charset):
+    """Generate an image showing each character and their corresponding index in the charset they were loaded from.
+    This is needed for model training, as those indexes will become the labels"""
+    char_width, char_height = charset.char_width, charset.char_height
+    size = (len(charset) * char_height, char_width * 5)
+    img = np.zeros(size, dtype=np.uint8)
+
+    for i, character in enumerate(charset):
+        img[i * char_height: (i+1) * char_height, 0:char_width] = character.img
+        color = (255,255,255)
+        cv.putText(img, str(character.index), (char_width + 3, ((i+1) * char_height) - 1), cv.FONT_HERSHEY_PLAIN, .75, color)
+
+    return img
+
+def make_charset_sprite(charset):
+    '''Generate a single sprite containing the images of every character in the charset, to be used as image labels for
+    Tensorboard'''
+
+    char_width, char_height = 8, 16
+    cols = math.ceil(math.sqrt(len(charset)))
+    size = (cols * char_height, cols * char_width)
+    img = np.zeros(size, dtype=np.uint8)
+
+    for i, character in enumerate(charset):
+        col = i % cols
+        row = math.floor(i / cols)
+
+        img[row * char_height : (row+1) * char_height, col * char_width : (col + 1) * char_width] = character.img
+
+    return img
+
+def _read_csv_file_for_shuffling(file_path):
+    """Helper function for shuffle_and_rebatch_csvs to read a single CSV file."""
+    with open(file_path, 'r', newline='') as f:
+        return list(csv.reader(f, delimiter='\t', quotechar='|'))
+
+def _write_rebatched_files(data, directory, prefix, rows_per_file):
+    """Helper function to write rows to batched CSV files."""
+    if not os.path.exists(directory):
+        os.makedirs(directory)
+
+    num_output_files = math.ceil(len(data) / rows_per_file)
+    print(f"Writing {len(data)} rows into {num_output_files} files in '{directory}'...")
+
+    for i in range(num_output_files):
+        start_index = i * rows_per_file
+        end_index = start_index + rows_per_file
+        chunk = data[start_index:end_index]
+
+        out_filename = os.path.join(directory, f"{prefix}_{i:04d}.csv")
+        with open(out_filename, 'w', newline='') as f:
+            writer = csv.writer(f, delimiter='\t', quotechar='|')
+            writer.writerows(chunk)
+
+
+def shuffle_and_rebatch_csvs(in_dir, out_dir, rows_per_file=1776, split_ratio=0.8):
+    """
+    Reads all *-ascii-data.txt files from in_dir, shuffles the rows,
+    and writes them to new CSV files in out_dir, each with a fixed number of rows.
+    The data is split into 'train' and 'test' subdirectories based on the split_ratio.
+
+    This process is handled in a multi-threaded fashion to accelerate file I/O.
+    """
+    print("--- Starting CSV shuffling and re-batching ---")
+    start_time = arrow.utcnow()
+
+    csv_files = glob.glob(os.path.join(in_dir, "*-ascii-data.txt"))
+    if not csv_files:
+        print(f"No '*-ascii-data.txt' files found in {in_dir}. Aborting.")
+        return
+
+    print(f"Found {len(csv_files)} CSV files to process.")
+
+    # Use a thread pool to read files in parallel
+    with Pool() as p:
+        results = p.map(_read_csv_file_for_shuffling, csv_files)
+
+    all_rows = [row for file_rows in results for row in file_rows]
+
+    print(f"Total rows read: {len(all_rows)}")
+
+    # Shuffle the data in-place
+    print("Shuffling data...")
+    random.shuffle(all_rows)
+    print("Shuffling complete.")
+
+    # Split data into training and testing sets
+    split_index = int(len(all_rows) * split_ratio)
+    train_rows = all_rows[:split_index]
+    test_rows = all_rows[split_index:]
+
+    print(f"Splitting data: {len(train_rows)} for training, {len(test_rows)} for testing.")
+
+    # Define output directories
+    train_dir = os.path.join(out_dir, 'train')
+    test_dir = os.path.join(out_dir, 'test')
+
+    # Write re-batched files
+    _write_rebatched_files(train_rows, train_dir, "train_data", rows_per_file)
+    _write_rebatched_files(test_rows, test_dir, "test_data", rows_per_file)
+
+    end_time = arrow.utcnow()
+    time_diff = end_time - start_time
+    print(f"--- Finished in {time_diff} ---")
 
 
 def eval_determinism():
@@ -298,7 +431,66 @@ def eval_determinism():
 
     print("Uncertain labels: " + uncertain_labels)
 
-if __name__ == "__main__":
-    create_training_images()
-    # make_histogram()
 
+if __name__ == "__main__":
+    """
+    Defaults:
+    """
+    out_min_width, out_min_height = 384, 384        # 48x48 characters of 8x8
+    out_max_width, out_max_height = 528, 528        # 64x64 characters of 8x8
+
+    parser = argparse.ArgumentParser(description='Generate training data for the ASCII NN Converter.')
+    parser.add_argument(
+        '--img-only',
+        help='Only create pipeline images, do not create data files',
+        action='store_true',
+        default=False)
+    parser.add_argument(
+        '--color-only',
+        help='Only generate the final color image, do not create other images or data files',
+        action='store_true',
+        default=False)
+    parser.add_argument(
+        '--start',
+        help='First number to be used in naming the output files. The rest will be incremented',
+        action='store',
+        default=0)
+    parser.add_argument(
+        '--width',
+        help='Width of the output image. If it is not a multiple of the char width, it will be clipped',
+        action='store',
+        default=out_min_width)
+    parser.add_argument(
+        '--height',
+        help='Height of the output image. If it is not a multiple of the char height, it will be clipped',
+        action='store',
+        default=out_min_height)
+    parser.add_argument(
+        '--no-inverted',
+        help='Do *not* generate a second set of inverted images and data files (will generate by default)',
+        action='store_true',
+        default=False)
+    parser.add_argument(
+        '--shuffle',
+        help='Shuffle and re-batch existing *-ascii-data.txt files',
+        action='store_true',
+        default=False)
+    parser.add_argument(
+        '--split-ratio',
+        help='Split ratio for training and testing sets',
+        action='store',
+        default=0.8)
+
+    args = parser.parse_args()
+    img_only = args.img_only
+    color_only = args.color_only
+    start_index = args.start
+    out_min_width = int(args.width)
+    out_min_height = int(args.height)
+    double_inverted = not args.no_inverted
+    split_ratio = args.split_ratio
+
+    if args.shuffle:
+        shuffle_and_rebatch_csvs(IN_DIR_DATA, os.path.join(IN_DIR_DATA, 'shuffled'), split_ratio=split_ratio)
+    else:
+        create_training_data(out_min_width, out_min_height, out_max_width, out_max_height, export_csv=(not img_only), color_only=color_only, start_index=int(start_index), double_inverted=double_inverted)

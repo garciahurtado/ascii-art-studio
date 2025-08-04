@@ -7,7 +7,6 @@ import numpy as np
 import cv2 as cv
 import cvtools.size_tools as tools
 import cvtools.contrast_filters as filters
-from ascii import AsciiConverter
 from color.palette_extractor import PaletteExtractor
 from cvtools import color_filters
 from logging_config import logger
@@ -107,7 +106,9 @@ class ProcessingPipeline():
 
     def _run_create_high_contrast(self, input_img):
         # This used to be (char_height * 2, char_width * 2), but it was too much detail which was degrading the final
-        # output. After visually comparing 0.5x, 1x and 2x, 1x was the best.
+        # output. After visually comparing 0.5x, 1x and 2x, 1x was the best. This does not affect output size or the
+        # number of ASCII characters in the final image, only the size of the blocks that are used for creating contrast
+
         block_size = (self.char_height, self.char_width)
         self.contrast_img = filters.block_contrast(self.grayscale, block_size, invert=self.invert)
         return input_img
@@ -188,7 +189,8 @@ class ProcessingPipeline():
         self.color_ascii = color_filters.quantize_img(self.color_ascii)
         return self.color_ascii
 
-    def _run_final_resize(self, input_img):
+    # DISABLED
+    def __run_final_resize(self, input_img):
         """Final resize, enlarging x2 without antialias"""
         final = cv.resize(input_img, (input_img.shape[1] * 2, input_img.shape[0] * 2), interpolation=cv.INTER_NEAREST)
 
