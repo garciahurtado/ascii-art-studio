@@ -9,6 +9,15 @@ lib/datasets/ascii_c64/data.hold/*
 lib/datasets/ascii_amstrad_cpc/data/*
 lib/datasets/ubuntu_mono/data/*
 lib/datasets/unscii_8x8/data/*
+
+/logs/
+/data/
+/wandb/
+/models/*
+/training/images/*
+/training/tmp_data/*
+/training/mlruns/*
+/training/mlartifacts/*
 mlruns/*
 mlartifacts/*
 
@@ -140,13 +149,6 @@ cython_debug/
 
 .idea/
 
-/logs/
-/data/
-/wandb/
-/models/*
-/training/images/*
-/training/tmp_data/*
-/training/mlruns/*
 
 # Web assets
 web/archive/
