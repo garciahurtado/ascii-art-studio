@@ -144,8 +144,9 @@ cython_debug/
 /data/
 /wandb/
 /models/*
-/training/images/in/*
-/training/images/out/*
+/training/images/*
+/training/tmp_data/*
+/training/mlruns/*
 
 # Web assets
 web/archive/
