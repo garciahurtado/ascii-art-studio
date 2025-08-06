@@ -9,6 +9,9 @@ lib/datasets/ascii_c64/data.hold/*
 lib/datasets/ascii_amstrad_cpc/data/*
 lib/datasets/ubuntu_mono/data/*
 lib/datasets/unscii_8x8/data/*
+datasets/*/processed/train/*
+datasets/*/processed/test/*
+datasets/*/processed/archive/*
 
 /logs/
 /data/

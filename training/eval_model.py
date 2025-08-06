@@ -26,7 +26,7 @@ def eval_model(dataset_type, dataset_name, model_filename, num_classes, charset)
     model.eval()  # put the model in inference mode
 
     # Load the test dataset
-    dataset = data.get_dataset(train=False, dataset_type=dataset_type, num_labels=num_classes)
+    dataset = data.get_dataset(train=False, dataset_type=dataset_type)
     dataloader = torch.utils.data.DataLoader(
         dataset,
         batch_size=batch_size,

@@ -55,7 +55,7 @@ def save_model(model, model_dir, model_file, source_class_file, charset: Charset
         model,
         model_file)
 
-def make_model_directory(dataset: str, base_dir: str = None) -> str:
+def make_model_directory(model_name: str, dataset: str, base_dir: str = None) -> str:
     """
     Don't ever call this function from any of the code in this module, instead
     pass the saved model directory as a parameter to those functions. It should only be called
@@ -65,7 +65,7 @@ def make_model_directory(dataset: str, base_dir: str = None) -> str:
     if base_dir is None:
         base_dir = MODELS_ROOT
 
-    full_dir = os.path.join(base_dir, dataset, f"{dataset}-{timestamp}")
+    full_dir = os.path.join(base_dir, dataset, f"{model_name}-{dataset}-{timestamp}")
 
     if os.path.exists(full_dir):
         printc(f"ERROR: model directory already exists: {full_dir}")

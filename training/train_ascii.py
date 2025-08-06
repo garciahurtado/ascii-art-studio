@@ -13,7 +13,9 @@ import torch.optim as optim
 import torch.nn as nn
 
 from charset import Charset
+from const import INK_GREEN, INK_BLUE
 from datasets.ascii_c64 import ascii_c64, AsciiC64
+from debugger import printc
 from net.ascii_c64_network import AsciiC64Network
 from performance_monitor import PerformanceMonitor
 import datasets.data_utils as data_utils
@@ -24,7 +26,7 @@ from datetime import datetime
 
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 
-def train_model(num_labels, dataset_type, dataset_name, charset):
+def train_model(num_labels, dataset_class, charset):
     # Eliminate randomness to increase training reproducibility
     torch_rnd_seed = np_rnd_seed = 123456
     torch.manual_seed(torch_rnd_seed)
@@ -34,27 +36,65 @@ def train_model(num_labels, dataset_type, dataset_name, charset):
 
     char_width = charset.char_width
     char_height = charset.char_height
+    dataset_name = dataset_class.dataset_name
+
+    # Define training parameters, including the new augmentation flag
+    train_params = {
+        'batch_size': 2048,
+        'test_batch_size': 1024 * 5,
+        'train_test_split': 0.8,  # This is purely for logging, not functional
+        'num_epochs': 30,
+        'num_labels': num_labels,
+        'learning_rate': 0.0003,
+        'decay_rate': 0.98,
+        'decay_every_steps': 512,
+        'test_every_steps': 64,
+        'log_every': 4,
+        'augment_training_data': False  # Master switch for augmentation
+    }
+
+    # Calculate derived parameters
+    # train_params['decay_every_steps'] = math.ceil(train_params['decay_every_samples'] / train_params['batch_size'])
+    train_params['decay_every_samples'] = math.ceil(train_params['decay_every_steps'] * train_params['batch_size'])
+
+    augment_params = None
+    # Conditionally log augmentation parameters if enabled
+    if train_params['augment_training_data']:
+        # augment_params = {
+        #     "RandomRotation_degrees": 0,
+        #     "RandomAffine_translate_x": 0.1,
+        #     "RandomAffine_translate_y": 0.1,
+        #     "RandomAffine_fill": 0,
+        #     "RandomHorizontalFlip_p": 0.5
+        # }
+        augment_params = {
+            "RandomRotation_degrees": 0,
+            "RandomAffine_translate_x": 0.5,
+            "RandomAffine_translate_y": 0,
+            "RandomAffine_fill": 0,
+            "RandomHorizontalFlip_p": 0
+        }
+        ml.log_params(augment_params)
 
     # Load datasets
     trainset = data_utils.get_dataset(
         train=True,
-        dataset_type=dataset_type,
-        num_labels=num_labels,
+        dataset_class=dataset_class,
         char_width=char_width,
-        char_height=char_height)
+        char_height=char_height,
+        augment=train_params['augment_training_data'],
+        augment_params=augment_params)
 
     testset = data_utils.get_dataset(
         train=False,
-        dataset_type=dataset_type,
-        num_labels=num_labels,
+        dataset_class=dataset_class,
         char_width=char_width,
         char_height=char_height)
 
-    # log basic training config
+    # log basic dataset config
     ml.log_params({
         'torch_rnd_seed': torch_rnd_seed,
         'np_rnd_seed': np_rnd_seed,
-        'num_labels': num_labels,
         'dataset_name': dataset_name,
         'char_width': char_width,
         'char_height': char_height,
@@ -64,58 +104,40 @@ def train_model(num_labels, dataset_type, dataset_name, charset):
     })
 
     charset_file = str(os.path.join(charset.CHARSETS_DIR, charset.filename))
-    ml.log_artifact(charset_file)   # Save the charset used during training
+    ml.log_artifact(charset_file)   # Save the charset image that was used during training data generation
 
     # Dataset split should only be done once at the start of project, and left stable, not every single run
     # trainset, testset = data_utils.split_dataset(trainset, 0.5, random_state=random_state, charset_name=dataset_name)
 
-    batch_size = 1024
-    test_batch_size = batch_size * 5
-
     class_counts = trainset.get_class_counts()
     num_train_samples = len(trainset)
-
-    steps_per_epoch = num_train_samples / batch_size
-    decay_every_samples = 256 * 1000
-
-    train_params = {
-        'batch_size': batch_size,
-        'test_batch_size': batch_size,
-        'num_epochs': 10,
-        'num_labels': num_labels,
-        'num_train_samples': num_train_samples,
-        'steps_per_epoch': steps_per_epoch,
-        'learning_rate': 0.0005,
-        'decay_rate': 0.96,
-        'decay_every_steps': math.ceil(decay_every_samples / batch_size),
-        'test_every_steps': 64,
-        'log_every': 4,
-    }
+    train_params['num_train_samples'] = num_train_samples
+    train_params['steps_per_epoch'] = num_train_samples / train_params['batch_size']
 
     trainloader = torch.utils.data.DataLoader(
         trainset,
-        batch_size=batch_size,
+        batch_size=train_params['batch_size'],
         shuffle=True,
-        num_workers=2,
-        prefetch_factor=None,
+        num_workers=3,
+        prefetch_factor=1,
         drop_last=True,
         worker_init_fn=data_utils.seed_init_fn)
 
     testloader = torch.utils.data.DataLoader(
         testset,
-        batch_size=test_batch_size,
+        batch_size=train_params['test_batch_size'],
         shuffle=True,
-        num_workers=2,
-        prefetch_factor=None,
+        num_workers=3,
+        prefetch_factor=1,
         drop_last=True,
         worker_init_fn=data_utils.seed_init_fn)
 
     train(class_counts, trainloader, testloader, train_params, dataset_name, charset)
 
 
-# @ml_log_params
-def train(class_counts, trainloader, testloader, params, dataset_name, charset: Charset):
-    log_every = params['log_every']
+def train(class_counts, trainloader, testloader, train_params, dataset_name, charset: Charset):
+    model_family = "ascii-vision"
+    log_every = train_params['log_every']
     device = data_utils.get_device()
 
     print(f"Training started on device: {device}")
@@ -130,12 +152,16 @@ def train(class_counts, trainloader, testloader, params, dataset_name, charset: 
     source_class_file = inspect.getfile(model.__class__)
     model.to(device)
 
-    model_dir = models.make_model_directory(dataset_name)
+    model_dir = models.make_model_directory(model_family, dataset_name)
     model_filename = models.get_model_filename(dataset_name, model_dir)
 
-    print(f"Trained model will be saved to: {model_filename}")
+    printc(f"Trained model will be saved to: {model_filename}", INK_BLUE)
+
+    # Log hyperparameters
+    ml.log_params(train_params)
 
     ml.log_params({
+        'model_family': model_family,
         'model_path': model_dir,
         'source_class_name': source_class_name,
         'source_class_file': source_class_file
@@ -147,15 +173,18 @@ def train(class_counts, trainloader, testloader, params, dataset_name, charset: 
     model.apply(weights_init_uniform_rule)
 
     # Generate class weights automatically
-    class_weights = data_utils.create_class_weights(class_counts, mu=0.00015)
+    class_weights = data_utils.create_class_weights(class_counts, mu=0.002)
     class_weights = torch.tensor(class_weights, dtype=torch.float)
-    class_weights.to(device)
+    class_weights = class_weights.to(device)
 
-    # Loss function / optimizer / Learning rate scheduler
-    criterion = nn.CrossEntropyLoss().cuda()
-    optimizer = optim.Adam(model.parameters(), lr=params['learning_rate'])
-    scheduler = optim.lr_scheduler.ExponentialLR(optimizer, params['decay_rate'])
+    criterion = nn.CrossEntropyLoss(weight=class_weights)
+    optimizer = optim.Adam(model.parameters(), lr=train_params['learning_rate'])
 
+    # Set up the learning rate scheduler
+    # scheduler = optim.lr_scheduler.ExponentialLR(optimizer, train_params['decay_rate'])
+    scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=20, factor=0.5)
+
+    # Set up Tensorboard writer
     # Add image embeddings
     # images, labels = select_n_random(trainset.data, trainset.targets, 1000)
     # add_image_embeddings(writer, images, labels, classes)
@@ -165,9 +194,9 @@ def train(class_counts, trainloader, testloader, params, dataset_name, charset: 
 
     testloader_gen = iter(testloader)
 
-    for epoch in range(params['num_epochs']):
+    for epoch in range(train_params['num_epochs']):
         print()
-        print(f"======== EPOCH {epoch}/{params['num_epochs']} ========")
+        print(f"======== EPOCH {epoch}/{train_params['num_epochs']} ========")
         print()
         steps_per_epoch = len(trainloader)
 
@@ -196,9 +225,9 @@ def train(class_counts, trainloader, testloader, params, dataset_name, charset: 
             global_step = (epoch * steps_per_epoch) + step
 
             # +1 below makes sure we don't decay on step 0
-            if ((global_step + 1) % params['decay_every_steps']) == 0:
-                # decrease the learning rate
-                scheduler.step()
+            # if ((global_step + 1) % train_params['decay_every_steps']) == 0:
+            #     # decrease the learning rate
+            #     scheduler.step()
 
             # Is it time to log?
             if (global_step % log_every) == 0:
@@ -208,7 +237,7 @@ def train(class_counts, trainloader, testloader, params, dataset_name, charset: 
                     "learning_rate": scheduler.get_last_lr()[0]
                 }, step=global_step)
 
-            if ((global_step + 1) % params['test_every_steps']) == 0:
+            if ((global_step + 1) % train_params['test_every_steps']) == 0:
                 # perform validation on test dataset
                 test_accuracy = 0
                 test_perf.reset()
@@ -234,6 +263,10 @@ def train(class_counts, trainloader, testloader, params, dataset_name, charset: 
                     "test/accuracy": test_accuracy
                 }, step=global_step)
 
+                # decrease the learning rate
+                scheduler.step(test_loss)
+
+
             avg_loss = perf.get_avg_loss()
             desc = f"Step: {step} / Loss: "
             desc += f"{avg_loss:.3f}" if avg_loss else "n/a"
@@ -242,12 +275,15 @@ def train(class_counts, trainloader, testloader, params, dataset_name, charset: 
 
             # end for each step in epoch
 
-        # End of epoch - save checkpoint
+        """
+        End of epoch - save checkpoint
+        These metrics will be saved by PyTorch alongside the model, which is why they are duplicated below
+        """
         metrics = {
             'train_accuracy': perf.get_accuracy(),
-            'learning_rate': scheduler.get_last_lr()[0],
             'test_accuracy': test_accuracy if 'test_accuracy' in locals() else 0.0,
-            'test_loss': test_loss.item() if 'test_loss' in locals() else float('inf')
+            'test_loss': test_loss.item() if 'test_loss' in locals() else float('inf'),
+            'learning_rate': scheduler.get_last_lr()[0],
         }
 
         checkpoint_path = models.save_checkpoint(
@@ -260,6 +296,8 @@ def train(class_counts, trainloader, testloader, params, dataset_name, charset: 
         )
 
         print(f"Checkpoint saved to {checkpoint_path}")
+        printc("== End of Epoch ==", INK_GREEN)
+
         ml.log_artifact(checkpoint_path)
 
         # Log epoch metrics
@@ -271,12 +309,14 @@ def train(class_counts, trainloader, testloader, params, dataset_name, charset: 
         }, step=global_step)
 
     # End of training - save final model
-    print('Finished Training')
+    printc('================= TRAINING FINISHED =================', INK_GREEN)
+
+    full_model_name = f"{model_family}-{dataset_name}"
 
     # Save the final model using MLflow
-    final_model_path = os.path.join(model_dir, 'final_model.pt')
+    final_model_path = os.path.join(model_dir, f"{full_model_name}.pt")
     torch.save({
-        'epoch': params['num_epochs'] - 1,
+        'epoch': train_params['num_epochs'] - 1,
         'model_state_dict': model.state_dict(),
         'optimizer_state_dict': optimizer.state_dict(),
         'metrics': metrics,
@@ -288,8 +328,8 @@ def train(class_counts, trainloader, testloader, params, dataset_name, charset: 
     # Log the final model
     ml.pytorch.log_model(
         pytorch_model=model,
-        name="final_model",
-        registered_model_name="ascii_c64_final_model",
+        name=model_family,
+        registered_model_name=full_model_name,
         pip_requirements=[f"torch=={torch.__version__}"]
     )
 
@@ -303,6 +343,11 @@ def weights_init_uniform_rule(model):
         y = 1.0 / np.sqrt(n)
         model.weight.data.uniform_(-y, y)
         model.bias.data.fill_(0)
+
+def weights_init_xavier(m):
+    if isinstance(m, nn.Linear):
+        torch.nn.init.xavier_uniform(m.weight)
+        m.bias.data.fill_(0.01)
 
 
 def validate(model, testloader, criterion):
@@ -349,31 +394,34 @@ def calc_accuracy(model: torch.nn.Module, x: torch.Tensor, y: torch.Tensor) -> f
 
 
 if __name__ == "__main__":
+    # Basic config  --------------------------------------
     cur_dir = os.path.dirname(os.path.abspath(__file__))
-    root_dir = os.path.join(cur_dir, "../lib")
+    root_dir = os.path.join(cur_dir, "../")
 
+    dataset_class = AsciiC64
     charset_name = 'c64.png'
+
+    # ----------------------------------------------------
     charset = Charset()
     charset.load(charset_name)
     char_width, char_height = charset.char_width, charset.char_height
 
-    # Output charset params
+    # Output charset details
     print(f"Charset Loaded: {charset_name}")
     print(f"  char width: {char_width}")
     print(f"  char height: {char_height}")
     print(f"  count: {len(charset.chars)}")
 
     num_classes = len(charset.chars) * 2
-    dataset_type = AsciiC64
-    dataset_name = 'ascii_c64'
+    dataset_name = dataset_class.dataset_name
 
     # """
     # data_utils.write_dataset_class_counts(
     #     f'{root_dir}/datasets/{dataset_name}/data/{dataset_name}_class_counts',
     #     num_classes,
-    #     dataset_type,
+    #     dataset_class,
     #     char_width=char_width,
     #     char_height=char_height)
     # """
 
-    train_model(num_classes, dataset_type, dataset_name, charset)
+    train_model(num_classes, dataset_class, charset)

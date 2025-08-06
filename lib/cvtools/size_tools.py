@@ -1,6 +1,14 @@
+from dataclasses import dataclass
+
 import numpy as np
 import cv2 as cv
 from numpy.lib.stride_tricks import as_strided as as_strided
+import math
+
+@dataclass
+class Dimensions:
+    width: int
+    height: int
 
 def resize_with_padding(img, size, padColor=0, block_size=8):
     """
@@ -87,6 +95,42 @@ def resize_grayscale(img, size):
     """ Resize a grayscale image """
     output = cv.resize(img, size, interpolation=cv.INTER_AREA)
     return output
+
+def adjust_img_size(in_dims: Dimensions, min_dims: Dimensions, max_dims: Dimensions):
+    """
+    Take the *smallest* dimension of the input image and match it to the equivalent dimension of the output image. Calculate
+    the aspect ratio of the input image, and use that ratio to calculate the other dimension.
+    This should minimize letterboxing during resizing, and work for both portrait and landscape images, without having to manually
+    specify different output dimensions for each aspect ratio.
+    """ 
+    img_aspect_ratio = in_dims.width / in_dims.height
+
+    if in_dims.width < in_dims.height:    # Portrait
+        new_width = min_dims.width
+        new_height = int(new_width / img_aspect_ratio)
+        if new_height < min_dims.height:
+            new_height = min_dims.height
+            new_width = int(new_height * img_aspect_ratio)
+        elif new_height > max_dims.height:
+            new_height = max_dims.height
+            new_width = int(new_height * img_aspect_ratio)
+
+    else:                               # Landscape or Square
+        new_height = min_dims.height
+        new_width = int(new_height * img_aspect_ratio)
+        if new_width < min_dims.width:
+            new_width = min_dims.width
+            new_height = int(new_width / img_aspect_ratio)
+        elif new_width > max_dims.width:
+            new_width = max_dims.width
+            new_height = int(new_width / img_aspect_ratio)
+
+    # Adjust to nearest multiple of 8
+    new_height = math.ceil(new_height / 8) * 8
+    new_width = math.ceil(new_width / 8) * 8
+
+    return new_width, new_height
+
 
 def as_blocks(image, size=(8,8), flatten=False):
     return sliding_window(image, size, flatten=flatten)

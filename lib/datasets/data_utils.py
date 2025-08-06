@@ -1,6 +1,7 @@
 import math
 import os
 import random
+from typing import Type
 
 import numpy as np
 import pandas as pd
@@ -9,7 +10,11 @@ from sklearn.model_selection import train_test_split
 import torchvision.transforms as transforms
 from torch.utils.data import Dataset
 
+from const import INK_BLUE
 from datasets.ascii_subset import AsciiSubset
+from datasets.data_augment import AugmentedAsciiDataset
+from datasets.multi_dataset import MultiDataset
+from debugger import printc
 
 
 class OneHot:
@@ -48,19 +53,22 @@ def get_class_counts(dataset, num_classes):
     return counts
 
 
-def create_class_weights(labels, mu=0.001):
-    labels = {item[0]: item[1] for item in labels}
-    total = np.sum(list(labels.values()))
-    keys = labels.keys()
+def create_class_weights(class_counts, mu=0.001):
+    """ Calculates class weights based on the number of samples in each class,
+    and the total number of samples in the dataset. The class weights are later used
+    to balance the loss function during training. """
+    class_counts = {item[0]: item[1] for item in class_counts}
+    total = np.sum(list(class_counts.values()))
+    labels = class_counts.keys()
     class_weights = dict()
 
-    for key in keys:
-        if (labels[key] > 0):
-            score = math.log(mu * total / float(labels[key]))
+    for label in labels:
+        if (class_counts[label] > 0):
+            score = math.log(mu * total / float(class_counts[label]))
         else:
             score = 0
 
-        class_weights[key] = score if score > 0 else 0
+        class_weights[label] = score if score > 0 else 0
 
     # normalize the weights
     # weight_sum = sum(class_weights)
@@ -69,7 +77,9 @@ def create_class_weights(labels, mu=0.001):
     return list(class_weights)
 
 
-def calculate_class_weights(class_counts):
+def _calculate_class_weights(class_counts):
+    # DEPRECATED?
+
     # Calculate class frequencies
     class_counts = torch.tensor(class_counts)
     # total_count = class_counts.sum()
@@ -101,8 +111,9 @@ def calculate_class_weights(class_counts):
     # class_weights = 1 / torch.tensor([effective_num]) ** mu
     return class_weights
 
-def write_dataset_class_counts(path, num_classes, dataset_type, char_width=8, char_height=8):
-    # Extract class counts for class weights
+def write_dataset_class_counts(path, num_classes, dataset_class, char_width=8, char_height=8):
+    """ Extracts class counts from a dataset and writes them to a CSV file, to either be analyzed, or to be used for
+    balancing the dataset during training. """
 
     print("Evaluating class counts... This may take some time")
 
@@ -111,12 +122,13 @@ def write_dataset_class_counts(path, num_classes, dataset_type, char_width=8, ch
     if not os.access(outdir, os.W_OK):
         raise Exception(f"Cannot write to {outfile}. Permission denied")
 
-    dataset = get_dataset(num_labels=num_classes, dataset_type=dataset_type, char_width=char_width, char_height=char_height)
+    dataset = get_dataset(num_labels=num_classes, dataset_class=dataset_class, char_width=char_width, char_height=char_height)
     counts = get_class_counts(dataset, num_classes)
     pd.DataFrame(counts).to_csv(outfile, header=False)
 
     print(f"FINISHED: Class counts written to {outfile}")
 
+    # To get the trainset counts only
     # counts = data_utils.get_class_counts(get_dataset(train=False))
     # pd.DataFrame(counts).to_csv(f"{path}-test.csv", header=False)
 
@@ -142,7 +154,7 @@ def get_dataset_details(dataset):
     
     # Basic dataset information
     details['basic_info']['num_samples'] = len(dataset)
-    details['basic_info']['dataset_type'] = type(dataset).__name__
+    details['basic_info']['dataset_class'] = type(dataset).__name__
     
     # Get a sample to determine data shapes and types
     try:
@@ -236,7 +248,7 @@ def split_dataset(dataset, test_split=0.2, random_state=0, charset_name=None):
     testset = AsciiSubset(dataset, test_idx, charset_name, dataset.data_root)
     return trainset, testset
 
-def get_dataset(train=True, dataset_type: Dataset=None, char_height=8, char_width=8, num_labels=None):
+def get_dataset(train=True, dataset_class: Type[MultiDataset] = None, char_height=8, char_width=8, num_labels=None, augment=False, augment_params: dict = None):
     # Skip the OneHot transform as long as we are using CrossEntropyLoss
     # transform = transforms.Compose(
     #     [transforms.ToTensor()])
@@ -244,14 +256,22 @@ def get_dataset(train=True, dataset_type: Dataset=None, char_height=8, char_widt
     # target_transform = transforms.Compose(
     #     [OneHot(num_labels)])
 
-    dataset = dataset_type(
+    dataset = dataset_class(
         train=train,
         device=get_device())
 
     dataset.char_width = char_width
     dataset.char_height = char_height
 
-    print(f"Dataset: {dataset_type.__name__} loaded (Train: {train})")
+    # Conditionally wrap the dataset with the augmentation class
+    if train and augment:
+        print("Data augmentation enabled for the training set.")
+        dataset = AugmentedAsciiDataset(
+            original_dataset=dataset,
+            is_train=True,
+            augment_params=augment_params)
+
+    print(f"Dataset: {dataset_class.__name__} loaded (Train: {train})")
     print("-" * 50)
     print_dataset_details(dataset)
     print("-" * 50)
@@ -268,10 +288,10 @@ def seed_init_fn(x):
 def get_device():
     if torch.cuda.is_available():
         device = torch.device('cuda')
-        # print("Using CUDA driver")
+        printc(f"Using CUDA driver version: {torch.version.cuda}", INK_BLUE)
     else:
         device = torch.device('cpu')
-        print("No CUDA driver available. Using CPU fallback")
+        printc("No CUDA available. Using CPU fallback")
 
     return device
 

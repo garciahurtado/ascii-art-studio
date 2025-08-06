@@ -5,6 +5,8 @@ import glob
 import math
 import os
 import argparse
+from dataclasses import dataclass
+
 import arrow
 from collections import Counter
 import random
@@ -18,6 +20,7 @@ from multiprocessing import Pool
 from charset import Charset
 from ascii import FeatureAsciiConverter
 from cvtools.processing_pipeline import ProcessingPipeline
+from cvtools.size_tools import Dimensions, adjust_img_size
 
 IN_DIR = 'images/in/'
 IN_DIR_DATA = 'tmp_data/'
@@ -46,7 +49,7 @@ char_width, char_height = charset.char_width, charset.char_height
 
 # charset.write('unscii_8x8-packed.png') # pack the character set (only needed once)
 
-def create_single_image(filename, index, out_min_width, out_min_height, out_max_width, out_max_height, export_csv=True, color_only=False, labels=False, double_inverted=True):
+def create_single_image(filename, index, min_dims: Dimensions, max_dims: Dimensions, export_csv=True, color_only=False, labels=False, double_inverted=True):
 
     if os.path.isfile(filename):
         print(f'Processing {filename}...')
@@ -54,66 +57,29 @@ def create_single_image(filename, index, out_min_width, out_min_height, out_max_
         in_img = cv.imread(filename)
 
         out_filename = f"{index:06d}"
-        convert_image(in_img, labels, out_filename, out_min_width, out_min_height, out_max_width, out_max_height, export_csv=export_csv, color_only=color_only)
+        convert_image(in_img, labels, out_filename, min_dims, max_dims, export_csv=export_csv, color_only=color_only)
 
         if double_inverted:
             out_filename = f"{index:06d}-inv"
-            convert_image(in_img, labels, out_filename, out_min_width, out_min_height, out_max_width, out_max_height, export_csv=export_csv, color_only=color_only, is_inverted=True)
+            convert_image(in_img, labels, out_filename, min_dims, max_dims, export_csv=export_csv, color_only=color_only, is_inverted=True)
 
         return True
     else:
         return False
 
 
-def adjust_img_size(in_img_width, in_img_height, out_min_width, out_min_height, out_max_width, out_max_height):
-    """
-    Take the *smallest* dimension of the input image and match it to the equivalent dimension of the output image. Calculate
-    the aspect ratio of the input image, and use that ratio to calculate the other dimension.
-    This should minimize letterboxing during resizing, and work for both portrait and landscape images, without having to manually
-    specify different output dimensions for each aspect ratio.
-    """
-    img_aspect_ratio = in_img_width / in_img_height
-
-    if in_img_width < in_img_height:    # Portrait
-        new_width = out_min_width
-        new_height = int(new_width / img_aspect_ratio)
-        if new_height < out_min_height:
-            new_height = out_min_height
-            new_width = int(new_height * img_aspect_ratio)
-        elif new_height > out_max_height:
-            new_height = out_max_height
-            new_width = int(new_height * img_aspect_ratio)
-
-    else:                               # Landscape
-        new_height = out_min_height
-        new_width = int(new_height * img_aspect_ratio)
-        if new_width < out_min_width:
-            new_height = int(new_width / img_aspect_ratio)
-            new_width = out_min_width
-        elif new_width > out_max_width:
-            new_width = out_max_width
-            new_height = int(new_width / img_aspect_ratio)
-
-    # Adjust to nearest multiple of 8
-    new_height = math.ceil(new_height / 8) * 8
-    new_width = math.ceil(new_width / 8) * 8
-
-    return new_width, new_height
-
-
-def convert_image(in_img, labels, filename, out_min_width, out_min_height, out_max_width, out_max_height, export_csv=True, color_only=False, is_inverted=False):
+def convert_image(in_img, labels, filename, min_dims, max_dims, export_csv=True, color_only=False, is_inverted=False):
     out_file_color = OUT_DIR + f'{filename}-color.png'
     out_file_contrast = OUT_DIR + f'{filename}-contrast.png'
     out_file_ascii = OUT_DIR + f'{filename}-ascii.png'
 
     in_img_width, in_img_height = in_img.shape[1], in_img.shape[0]
-    out_min_width, out_min_height = adjust_img_size(in_img_width, in_img_height, out_min_width, out_min_height, out_max_width, out_max_height)
+    in_dims = Dimensions(in_img_width, in_img_height)
 
     converter = FeatureAsciiConverter(charset)
     pipeline = ProcessingPipeline(brightness=100, contrast=3.0)
     pipeline.converter = converter
-    pipeline.img_width = out_min_width
-    pipeline.img_height = out_min_height
+    pipeline.img_width, pipeline.img_height = adjust_img_size(in_dims, min_dims, max_dims)
 
     final_img = pipeline.run(in_img, invert=is_inverted)
 
@@ -153,7 +119,7 @@ def convert_image(in_img, labels, filename, out_min_width, out_min_height, out_m
     if labels:
         return converter.get_label_data()
 
-def create_training_data(out_min_width, out_min_height, out_max_width, out_max_height, export_csv=True, color_only=False, start_index=0, double_inverted=True):
+def create_training_data(min_dims: Dimensions, max_dims: Dimensions, export_csv=True, color_only=False, start_index=0, double_inverted=True):
     """
     :Bool export_csv: Whether to create CSV files of the ASCII characters used in each image
     :int start_index: Pass something other than zero to avoid filenaming conflicts
@@ -183,7 +149,7 @@ def create_training_data(out_min_width, out_min_height, out_max_width, out_max_h
             if os.path.isdir(full_path):
                 continue # Skip directories
 
-            params = [full_path, start_index + index, out_min_width, out_min_height, out_max_width, out_max_height, export_csv, color_only, labels, double_inverted]
+            params = [full_path, start_index + index, min_dims, max_dims, export_csv, color_only, labels, double_inverted]
             all_params.append(params)
 
         p.starmap(create_single_image, all_params)
@@ -192,6 +158,58 @@ def create_training_data(out_min_width, out_min_height, out_max_width, out_max_h
     time_diff = end_time - start_time
     num_entries = len(all_params)
     print(f"*** DONE: {num_entries} images processed by {num_threads} threads in: {time_diff} ***")
+
+    """ Once the dataset is complete, create the metadata file:
+        name: ascii_c64
+    version: 1.0.0
+    created: 2025-08-05
+    description: "ASCII art dataset from C64 character set"
+    license: MIT
+    source: "https://example.com/source"
+    features:
+      - name: image
+        description: "8x8 grayscale character patches"
+        shape: [8, 8]
+        dtype: float32
+      - name: label
+        description: "Character class index"
+        dtype: int64
+    splits: [train, val, test]
+    statistics:
+      num_samples: 10000
+      class_distribution: "path/to/distribution.json"
+      """
+    this_script = os.path.basename(__file__)
+    dataset_name = this_script.split('.')[0]
+    version = "0.0.1"
+
+    yaml_dict = {
+        "name": dataset_name,
+        "version": version,
+        "created": date_time,
+        "description": f"ASCII art dataset generated from {charset_name} character set",
+        "license": "MIT",
+        "source": "https://github.com/garciahurtad/ascii_movie_pytorch",
+        "features": [
+            {
+                "name": "image",
+                "description": "8x8 grayscale character patches",
+                "shape": [8, 8],
+                "dtype": "float32"
+            },
+            {
+                "name": "label",
+                "description": "Character class index",
+                "dtype": "int64"
+            }
+        ],
+        "train_split": "n/a",
+        "statistics": {
+            "num_samples": num_entries,
+            "class_distribution": "n/a"
+        },
+        "cmdline": f"python {this_script} {IN_DIR} {OUT_DIR}"
+    }
 
     # Display character histogram
     # show_histogram(all_used_chars)
@@ -466,8 +484,8 @@ if __name__ == "__main__":
         action='store',
         default=out_min_height)
     parser.add_argument(
-        '--no-inverted',
-        help='Do *not* generate a second set of inverted images and data files (will generate by default)',
+        '--inverted',
+        help='Generate a second set of inverted images and data files (will not generate by default)',
         action='store_true',
         default=False)
     parser.add_argument(
@@ -485,12 +503,12 @@ if __name__ == "__main__":
     img_only = args.img_only
     color_only = args.color_only
     start_index = args.start
-    out_min_width = int(args.width)
-    out_min_height = int(args.height)
-    double_inverted = not args.no_inverted
-    split_ratio = args.split_ratio
+    min_dims = Dimensions(width=int(args.width), height=int(args.height))
+    max_dims = Dimensions(width=out_max_width, height=out_max_height)
+    double_inverted = args.inverted
+    split_ratio = float(args.split_ratio)
 
     if args.shuffle:
         shuffle_and_rebatch_csvs(IN_DIR_DATA, os.path.join(IN_DIR_DATA, 'shuffled'), split_ratio=split_ratio)
     else:
-        create_training_data(out_min_width, out_min_height, out_max_width, out_max_height, export_csv=(not img_only), color_only=color_only, start_index=int(start_index), double_inverted=double_inverted)
+        create_training_data(min_dims, max_dims, export_csv=(not img_only), color_only=color_only, start_index=int(start_index), double_inverted=double_inverted)

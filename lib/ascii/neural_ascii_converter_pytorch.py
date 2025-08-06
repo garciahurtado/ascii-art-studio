@@ -13,21 +13,6 @@ import torch
 from net.ascii_classifier_network import AsciiClassifierNetwork
 from pytorch import model_manager
 
-this_dir = os.path.dirname(os.path.realpath(__file__))
-print("Neural ASCII Converter Pytorch module loaded from: {}".format(this_dir))
-MODELS_DIR = os.path.join(this_dir, "..\..\\", "models\\")
-
-def get_device():
-    if torch.cuda.is_available():
-        device = torch.device('cuda')
-        print("Using CUDA driver")
-    else:
-        device = torch.device('cpu')
-        print("No CUDA driver available. Using CPU fallback")
-
-    return device
-
-
 class NeuralAsciiConverterPytorch(AsciiConverter):
     model: AsciiClassifierNetwork = None
 

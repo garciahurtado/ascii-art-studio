@@ -37,6 +37,5 @@ def ml_log_params(func):
     return wrapper
 
 mlflow.set_tracking_uri("http://127.0.0.1:5000")
-# mlflow.set_experiment(experiment_id='989653151241646983')
-mlflow.set_experiment(experiment_id='0') # test experiment
+mlflow.set_experiment(experiment_id='989653151241646983')  # ASCII Vision - c64
 

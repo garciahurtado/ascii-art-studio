@@ -11,6 +11,8 @@ from torch.utils.data import Dataset
 
 
 class MultiDataset(Dataset):
+    dataset_name = None
+
     """ A dataset which can extract data from multiple CSV files without loading them all at once.
     It keeps track of the byte offset where each sample starts within each CSV file, in order to build an
     index which can be used for quick file seek and retrieval. """
@@ -138,12 +140,7 @@ class MultiDataset(Dataset):
         return filename, offset
 
     def get_class_counts(self, test=False):
-        if test:
-            filename = "amstrad-cpc_class_counts-test"
-        else:
-            filename = "amstrad-cpc_class_counts"
-
-        return self.get_class_counts_from_csv(filename)
+        return super().get_class_counts_from_csv(f"{self.dataset_name}_class_counts")
 
     def get_class_counts_from_csv(self, filename):
         ''' Loads the class counts from a CSV file previously generated '''
