@@ -13,7 +13,7 @@ from tqdm import tqdm
 import time
 
 from charset import Charset
-from datasets.ascii_c64 import AsciiC64
+from datasets.ascii_c64.ascii_c64_dataset import AsciiC64Dataset
 import datasets.data_utils as data
 import pytorch.model_manager as models
 
@@ -212,7 +212,7 @@ def visTensor(tensor, ch=0, allkernels=False, nrow=8, padding=1):
     plt.imshow(mygrid.transpose((1, 2, 0)))
 
 if __name__ == "__main__":
-    dataset_class = AsciiC64
+    dataset_class = AsciiC64Dataset
     dataset_name = 'ascii_c64'
     model_filename = 'ascii_c64-Mar17_21-33-46'
     num_classes = 254

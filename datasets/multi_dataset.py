@@ -9,7 +9,7 @@ from datasets.ascii_dataset import AsciiDataset
 
 class MultiDataset(AsciiDataset):
     version = "0.0.0"  # this will tell us when a dataset does not have a specific version set
-    dataset_name = None
+    dataset_name = None  # Must be overridden in child class, or MultiDataset should be called by explicitly passing a dataset name
     metadata = {}
 
     """ A dataset which can extract data from multiple CSV files without loading them all at once.
@@ -17,19 +17,19 @@ class MultiDataset(AsciiDataset):
     index which can be used for quick file seek and retrieval. """
     """ @ref https://stackoverflow.com/questions/67941749/what-is-the-fastest-way-to-load-data-from-multiple-csv-files """
 
-    def __init__(self, train=True, batch_size=1, transform=None, target_transform=None, discard_empty_full=True,
+    def __init__(self, dataset_name, batch_size=1, transform=None, target_transform=None,
+                 discard_empty_full=True, subdir=None,
                  **kwargs):
-        super(MultiDataset, self).__init__()
         self.transform = transform
         self.target_transform = target_transform
-        self.char_height = 8
+        self.char_height = 8  # needs to be made configurable
         self.char_width = 8
 
         # Append dataset type (train/test) to data root, which was set in the constructor of the parent class
-        if train:
-            self.data_root = os.path.join(self.data_root, 'train')
+        if subdir:
+            super(MultiDataset, self).__init__(dataset_name, subdir=subdir, **kwargs)
         else:
-            self.data_root = os.path.join(self.data_root, 'test')
+            super(MultiDataset, self).__init__(dataset_name, **kwargs)
 
         print("Dataset root is " + self.data_root)
         files = os.listdir(self.data_root)
@@ -140,11 +140,12 @@ class MultiDataset(AsciiDataset):
         return filename, offset
 
     def get_class_counts(self, test=False):
-        return super().get_class_counts_from_csv(f"{self.dataset_name}_class_counts")
+        filename = os.path.join(f"reports/{self.dataset_name}_class_counts.csv")
+        return self.get_class_counts_from_csv(filename)
 
     def get_class_counts_from_csv(self, filename):
         ''' Loads the class counts from a CSV file previously generated '''
-        filename = os.path.join(self.data_root, f"../{filename}.csv")
+        filename = os.path.join(self.data_root, filename)
         class_counts = pd.read_csv(filename, header=None)
         class_counts = class_counts.to_numpy()
 

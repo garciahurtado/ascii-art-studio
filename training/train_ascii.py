@@ -12,7 +12,7 @@ import torch.nn as nn
 
 from charset import Charset
 from const import INK_GREEN, INK_BLUE
-from datasets.ascii_c64 import AsciiC64
+from datasets.ascii_c64.ascii_c64_dataset import AsciiC64Dataset
 from debugger import printc
 from net.ascii_c64_network import AsciiC64Network
 from performance_monitor import PerformanceMonitor
@@ -75,15 +75,13 @@ def train_model(num_labels, dataset_class, charset):
 
     # Load datasets
     trainset = data_utils.get_dataset(
-        train=True,
+        subdir='train',
         dataset_class=dataset_class,
         char_width=char_width,
-        char_height=char_height,
-        augment=train_params['augment_training_data'],
-        augment_params=augment_params)
+        char_height=char_height)
 
     testset = data_utils.get_dataset(
-        train=False,
+        subdir='test',
         dataset_class=dataset_class,
         char_width=char_width,
         char_height=char_height)
@@ -102,9 +100,6 @@ def train_model(num_labels, dataset_class, charset):
 
     charset_file = str(os.path.join(charset.CHARSETS_DIR, charset.filename))
     ml.log_artifact(charset_file)   # Save the charset image that was used during training data generation
-
-    # Dataset split should only be done once at the start of project, and left stable, not every single run
-    # trainset, testset = data_utils.split_dataset(trainset, 0.5, random_state=random_state, charset_name=dataset_name)
 
     class_counts = trainset.get_class_counts()
     num_train_samples = len(trainset)
@@ -144,6 +139,7 @@ def train(class_counts, trainloader, testloader, train_params, dataset_name, cha
     print(f"Found {class_cardinality} classes in dataset")
     print(f"Charset {charset.filename} has {len(charset.chars)} chars.")
 
+    # This needs to be made configurable ASAP
     model = AsciiC64Network(num_labels=class_cardinality)
     source_class_name = model.__class__.__name__
     source_class_file = inspect.getfile(model.__class__)
@@ -395,7 +391,7 @@ if __name__ == "__main__":
     cur_dir = os.path.dirname(os.path.abspath(__file__))
     root_dir = os.path.join(cur_dir, "../")
 
-    dataset_class = AsciiC64
+    dataset_class = AsciiC64Dataset
     charset_name = 'c64.png'
 
     # ----------------------------------------------------
@@ -412,13 +408,5 @@ if __name__ == "__main__":
     num_classes = len(charset.chars) * 2
     dataset_name = dataset_class.dataset_name
 
-    # """
-    # data_utils.write_dataset_class_counts(
-    #     f'{root_dir}/datasets/{dataset_name}/data/{dataset_name}_class_counts',
-    #     num_classes,
-    #     dataset_class,
-    #     char_width=char_width,
-    #     char_height=char_height)
-    # """
 
     train_model(num_classes, dataset_class, charset)

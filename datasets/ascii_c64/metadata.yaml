@@ -13,6 +13,7 @@ features:
   name: label
 license: MIT
 name: ascii_c64
+num_classes: 254
 source: https://github.com/garciahurtad/ascii_movie_pytorch
 statistics:
   class_distribution: n/a

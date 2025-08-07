@@ -13,11 +13,10 @@ represents the label (ID of the character chosen for this particular block), and
 of the source image in 0-1 range.
 """
 
-class AsciiC64(MultiDataset):
+
+class AsciiC64Dataset(MultiDataset):
     dataset_name = "ascii_c64"
 
-    def __init__(self, transform=None, target_transform=None, train=None, device=None):
-        super().__init__(transform=transform, target_transform=target_transform, train=train, device=device)
-
-
-
+    def __init__(self, transform=None, target_transform=None, subdir=None, device=None):
+        super().__init__(self.dataset_name, transform=transform, target_transform=target_transform, subdir=subdir,
+                         device=device)

@@ -21,5 +21,5 @@ of the source image in 0-1 range.
 class UbuntuMono(MultiDataset):
     dataset_name = "ubuntu_mono"
 
-    def __init__(self, transform=None, target_transform=None, train=None, device=None):
-        super().__init__(transform=transform, target_transform=target_transform, train=train, device=device)
+    def __init__(self, transform=None, target_transform=None, subdir=None, device=None):
+        super().__init__(transform=transform, target_transform=target_transform, subdir=subdir, device=device)

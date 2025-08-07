@@ -4,7 +4,6 @@ import yaml
 from torch.utils.data import Dataset
 from const import DATASETS_ROOT
 
-
 class AsciiDataset(Dataset):
     """
     Base class for Ascii datasets. Provides metadata and a default implementation for the get_version() method
@@ -17,15 +16,14 @@ class AsciiDataset(Dataset):
     metadata_path: str  # full path to the metadata.yaml file
     data_root: str
 
-    def __init__(self, dataset_name, data_root=None):
+    def __init__(self, dataset_name, subdir=None):
         self.dataset_name = dataset_name
         self.dataset_path = os.path.join(DATASETS_ROOT, dataset_name)
         self.metadata_path = os.path.join(self.dataset_path, self.metadata_filename)
 
-        if not data_root:
-            data_root = os.path.join(self.dataset_path, 'processed')
+        subdir = os.path.join(self.dataset_path, subdir)
 
-        self.data_root = os.path.realpath(data_root)
+        self.data_root = os.path.realpath(subdir)
         if not os.path.exists(self.data_root):
             raise FileNotFoundError(f"Data root does not exist: {self.data_root}. Please create it and try again.")
 

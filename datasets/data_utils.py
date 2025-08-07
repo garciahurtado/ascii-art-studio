@@ -9,7 +9,8 @@ import pandas as pd
 import torch
 from sklearn.model_selection import train_test_split
 
-from const import INK_BLUE
+from const import INK_BLUE, PROJECT_ROOT, DATASETS_DIR
+from datasets.ascii_dataset import AsciiDataset
 from datasets.ascii_subset import AsciiSubset
 from datasets.data_augment import AugmentedAsciiDataset
 from datasets.multi_dataset import MultiDataset
@@ -111,18 +112,19 @@ def _calculate_class_weights(class_counts):
     # class_weights = 1 / torch.tensor([effective_num]) ** mu
     return class_weights
 
-def write_dataset_class_counts(path, num_classes, dataset_class, char_width=8, char_height=8):
+
+def write_dataset_class_counts(num_classes, dataset: AsciiDataset):
     """ Extracts class counts from a dataset and writes them to a CSV file, to either be analyzed, or to be used for
     balancing the dataset during training. """
 
     print("Evaluating class counts... This may take some time")
 
-    outfile = f"{path}.csv"
+    outfile = os.path.join(dataset.data_root, f"{dataset.dataset_name}_class_counts.csv")
     outdir = os.path.dirname(outfile)
+
     if not os.access(outdir, os.W_OK):
         raise Exception(f"Cannot write to {outfile}. Permission denied")
 
-    dataset = get_dataset(num_labels=num_classes, dataset_class=dataset_class, char_width=char_width, char_height=char_height)
     counts = get_class_counts(dataset, num_classes)
     pd.DataFrame(counts).to_csv(outfile, header=False)
 
@@ -248,7 +250,8 @@ def split_dataset(dataset, test_split=0.2, random_state=0, charset_name=None):
     testset = AsciiSubset(dataset, test_idx, charset_name, dataset.data_root)
     return trainset, testset
 
-def get_dataset(train=True, dataset_class: Type[MultiDataset] = None, char_height=8, char_width=8, num_labels=None, augment=False, augment_params: dict = None):
+
+def get_dataset(dataset_class: Type[MultiDataset] = None, char_height=8, char_width=8, subdir=None):
     # Skip the OneHot transform as long as we are using CrossEntropyLoss
     # transform = transforms.Compose(
     #     [transforms.ToTensor()])
@@ -257,19 +260,11 @@ def get_dataset(train=True, dataset_class: Type[MultiDataset] = None, char_heigh
     #     [OneHot(num_labels)])
 
     dataset = dataset_class(
-        train=train,
+        subdir=subdir,
         device=get_device())
 
     dataset.char_width = char_width
     dataset.char_height = char_height
-
-    # Conditionally wrap the dataset with the augmentation class
-    if train and augment:
-        print("Data augmentation enabled for the training set.")
-        dataset = AugmentedAsciiDataset(
-            original_dataset=dataset,
-            is_train=True,
-            augment_params=augment_params)
 
     print(f"Dataset: {dataset_class.__name__} loaded (Train: {train})")
 
@@ -278,23 +273,24 @@ def get_dataset(train=True, dataset_class: Type[MultiDataset] = None, char_heigh
 
 def get_dataset_class(dataset_name):
     dataset_name = dataset_name.lower()
-    dataset_full_path = join(PROJECT_ROOT, 'datasets', dataset_name, f'{dataset_name}_dataset.py')
+    module_path = ''
 
-    # using reflection, parse the source code of the dataset file, and take the first class that ends in _dataset
-    file = importlib.util.spec_from_file_location(dataset_name, dataset_full_path)
-    module = importlib.util.module_from_spec(file)
-    file.loader.exec_module(module)
-    # search for our class
-    class_names = list(module.__dict__.keys())
-    class_name = None
-    for name in class_names:
-        if name.endswith('Dataset'):
-            class_name = name
-            break
-    if class_name:
-        return getattr(module, class_name)
-    else:
-        raise ValueError(f"Dataset {dataset_name} does not have a Dataset class that ends in 'Dataset'")
+    try:
+        # Assuming 'datasets' is a package root
+        module_path = f"{DATASETS_DIR}.{dataset_name}.{dataset_name}_dataset"
+        module = importlib.import_module(module_path)
+
+        # Find the first class in this module that ends with 'Dataset'
+        for name, class_obj in module.__dict__.items():
+            if name.endswith('Dataset') and isinstance(class_obj, type):
+                return class_obj
+
+    except Exception as e:
+        error_msg = f"Unable to find dataset module {module_path}. "
+        raise ImportError(error_msg, e)
+
+    error_msg = f"Could not find a concrete Dataset class in {module_path} that ends with 'Dataset'. "
+    raise ImportError(error_msg)
 
 def seed_init_fn(x):
     seed = 12345 + x

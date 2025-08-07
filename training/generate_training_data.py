@@ -9,7 +9,7 @@ import sys
 import arrow
 from collections import Counter
 import random
-
+import datasets.data_utils as data_utils
 import cv2 as cv
 import matplotlib.pyplot as plt
 
@@ -32,8 +32,6 @@ DATA_DIR = 'processed'
 IN_IMG_DIR = os.path.join('images', 'in')
 OUT_IMG_DIR = os.path.join('images', 'out')
 IN_DATA_DIR = 'dataset_tmp'
-
-total_num_samples = 0
 
 # You have to generate the training data in two passes, first for images, then for video
 # WIDTH, HEIGHT = 496, 360  # For images
@@ -64,16 +62,16 @@ def process_image(filename, data_path, index, min_dims: Dimensions, max_dims: Di
 
     if os.path.isfile(filename):
         print(f'Processing {filename}...')
-
         in_img = cv.imread(filename)
 
         out_filename = f"{index:06d}"
-        convert_image(in_img, out_filename, data_path, min_dims, max_dims, export_csv=export_csv, color_only=color_only,
+        num_samples = convert_image(in_img, out_filename, data_path, min_dims, max_dims, export_csv=export_csv,
+                                    color_only=color_only,
                       return_labels=return_labels)
 
         if double_inverted:
             out_filename = f"{index:06d}-inv"
-            convert_image(in_img, out_filename, data_path, min_dims, max_dims, export_csv=export_csv,
+            num_samples += convert_image(in_img, out_filename, data_path, min_dims, max_dims, export_csv=export_csv,
                           color_only=color_only, is_inverted=True, return_labels=return_labels)
 
         return True
@@ -142,6 +140,7 @@ def create_training_data(min_dims: Dimensions, max_dims: Dimensions, export_csv=
     the dataset.
     """
     all_files = os.listdir(IN_IMG_DIR)
+    total_num_samples = 0
 
     # only process .png all_files
     all_files = [entry for entry in all_files if entry.endswith('.png')]
@@ -212,7 +211,13 @@ def create_training_data(min_dims: Dimensions, max_dims: Dimensions, export_csv=
             }
             all_kwargs.append(_kwargs)
 
-        starmap_with_kwargs(p, process_image, all_args, all_kwargs)
+        return_values = starmap_with_kwargs(p, process_image, all_args, all_kwargs)
+
+        """ process_image returns an integer with the number of samples generated. starmap will return a list of those
+        results """
+        for return_value in return_values:
+            if return_value:
+                total_num_samples += return_value
 
     end_time = arrow.utcnow()
     time_diff = end_time - start_time
@@ -220,11 +225,9 @@ def create_training_data(min_dims: Dimensions, max_dims: Dimensions, export_csv=
     print(f"*** DONE: {num_files_processed} images processed by {num_threads} threads in: {time_diff} ***")
 
     """ Now that the dataset is complete, create the metadata file """
-
-    # dataset_class = get_dataset_class(dataset_name)
     dataset = AsciiDataset(dataset_name)
 
-    num_samples = len(all_used_chars)
+    num_samples = total_num_samples
     new_version = save_metadata(dataset, num_files_processed, num_samples)
 
     printc(f"Saved dataset with version {new_version} to {out_data_dir}", INK_BLUE)
@@ -377,7 +380,8 @@ def _read_csv_file_for_shuffling(file_path):
     with open(file_path, 'r', newline='') as f:
         return list(csv.reader(f, delimiter='\t', quotechar='|'))
 
-def _write_rebatched_files(data, directory, prefix, rows_per_file):
+
+def _write_rebatched_files(data, directory, rows_per_file):
     """Helper function to write rows to batched CSV files."""
     if not os.path.exists(directory):
         os.makedirs(directory)
@@ -390,7 +394,7 @@ def _write_rebatched_files(data, directory, prefix, rows_per_file):
         end_index = start_index + rows_per_file
         chunk = data[start_index:end_index]
 
-        out_filename = os.path.join(directory, f"{prefix}_{i:04d}.csv")
+        out_filename = os.path.join(directory, f"{i:06d}-ascii-data.csv")
         with open(out_filename, 'w', newline='') as f:
             writer = csv.writer(f, delimiter='\t', quotechar='|')
             writer.writerows(chunk)
@@ -407,9 +411,9 @@ def shuffle_and_rebatch_csvs(in_dir, out_dir, rows_per_file=1776, split_ratio=0.
     print("--- Starting CSV shuffling and re-batching ---")
     start_time = arrow.utcnow()
 
-    csv_files = glob.glob(os.path.join(in_dir, "*-ascii-data.txt"))
+    csv_files = glob.glob(os.path.join(in_dir, "*-ascii-data.csv"))
     if not csv_files:
-        print(f"No '*-ascii-data.txt' files found in {in_dir}. Aborting.")
+        print(f"No '*-ascii-data.csv' files found in {in_dir}. Aborting.")
         return
 
     print(f"Found {len(csv_files)} CSV files to process.")
@@ -437,10 +441,17 @@ def shuffle_and_rebatch_csvs(in_dir, out_dir, rows_per_file=1776, split_ratio=0.
     # Define output directories
     train_dir = os.path.join(out_dir, 'train')
     test_dir = os.path.join(out_dir, 'test')
+    # check that the directories exist and are empty
+    if os.path.exists(train_dir):
+        if len(os.listdir(train_dir)) > 0:
+            raise FileExistsError(f"Directory {train_dir} is not empty. Please delete the contents before re-running.")
+    if os.path.exists(test_dir):
+        if len(os.listdir(test_dir)) > 0:
+            raise FileExistsError(f"Directory {test_dir} is not empty. Please delete the contents before re-running.")
 
     # Write re-batched files
-    _write_rebatched_files(train_rows, train_dir, "train_data", rows_per_file)
-    _write_rebatched_files(test_rows, test_dir, "test_data", rows_per_file)
+    _write_rebatched_files(train_rows, train_dir, rows_per_file)
+    _write_rebatched_files(test_rows, test_dir, rows_per_file)
 
     end_time = arrow.utcnow()
     time_diff = end_time - start_time
@@ -541,9 +552,19 @@ if __name__ == "__main__":
         default=False)
     parser.add_argument(
         '--split-ratio',
-        help='Split ratio for training and testing sets',
+        help='Split ratio for training and testing sets (0.0 to 1.0: training split)',
         action='store',
         default=0.8)
+    parser.add_argument(
+        '--count-labels',
+        help='Count the total number of examples for each label, in order to analyze the dataset distribution',
+        action='store_true',
+        default=False)
+    parser.add_argument(
+        '--subdir',
+        help='Subdirectory of DATASETS_ROOT to use (ie: DATASETS_ROOT/train) (count labels only)',
+        action='store',
+        default='processed/train')
 
     args = parser.parse_args()
     img_only = args.img_only
@@ -554,9 +575,23 @@ if __name__ == "__main__":
     double_inverted = args.inverted
     dataset_name = args.dataset
     split_ratio = float(args.split_ratio)
+    count_labels = args.count_labels
+    subdir = args.subdir
 
-    if args.shuffle:
-        shuffle_and_rebatch_csvs(IN_DATA_DIR, os.path.join(IN_DATA_DIR, 'shuffled'), split_ratio=split_ratio)
+    if args.count_labels:
+        dataset_class = data_utils.get_dataset_class(dataset_name)
+        dataset = dataset_class(dataset_name, subdir=subdir)
+        dataset.load_metadata()
+        num_classes = dataset.metadata['num_classes']
+        data_utils.write_dataset_class_counts(num_classes, dataset)
+
+        exit(0)
+    elif args.shuffle:
+        in_data_dir = os.path.realpath(os.path.join(DATASETS_ROOT, dataset_name, DATA_DIR))
+        out_data_dir = in_data_dir  # Use the same directory as in_data_dir
+        shuffle_and_rebatch_csvs(in_data_dir, out_data_dir, split_ratio=split_ratio)
+        exit(0)
     else:
         create_training_data(min_dims, max_dims, export_csv=(not img_only), color_only=color_only,
                              start_index=int(start_index), double_inverted=double_inverted, dataset_name=dataset_name)
+        exit(0)
