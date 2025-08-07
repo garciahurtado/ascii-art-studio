@@ -1,7 +1,5 @@
-import torch
 from torch.utils.data import Dataset
 from torchvision import transforms
-from PIL import Image
 from datasets.multi_dataset import MultiDataset
 
 class AugmentedAsciiDataset(Dataset):

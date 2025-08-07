@@ -42,19 +42,6 @@ def load_model(dataset, filename, num_labels):
 
     return model
 
-def save_model(model, model_dir, model_file, source_class_file, charset: Charset):
-    charset_file = os.path.join(charset.CHARSETS_DIR, charset.filename)
-    extra_files = [charset_file, source_class_file]
-
-    ml.pytorch.save_model(
-        model,
-        model_dir,
-        extra_files=extra_files)
-
-    ml.pytorch.log_model(
-        model,
-        model_file)
-
 def make_model_directory(model_name: str, dataset: str, base_dir: str = None) -> str:
     """
     Don't ever call this function from any of the code in this module, instead

@@ -21,7 +21,6 @@ class Unscii8x8(MultiDataset):
     dataset_name = "unscii_8x8"
 
     def __init__(self, transform=None, target_transform=None, train=None, device=None):
-        self.data_root = os.path.realpath(os.path.dirname(os.path.realpath(__file__)) + '/data/')
         super().__init__(transform=transform, target_transform=target_transform, train=train, device=device)
 
 

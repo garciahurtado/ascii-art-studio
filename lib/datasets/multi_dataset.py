@@ -1,17 +1,16 @@
-import math
 import os
-import re
 from functools import lru_cache
-from pathlib import Path
 
 import numpy as np
 import pandas as pd
 import torch
-from torch.utils.data import Dataset
+from datasets.ascii_dataset import AsciiDataset
 
 
-class MultiDataset(Dataset):
+class MultiDataset(AsciiDataset):
+    version = "0.0.0"  # this will tell us when a dataset does not have a specific version set
     dataset_name = None
+    metadata = {}
 
     """ A dataset which can extract data from multiple CSV files without loading them all at once.
     It keeps track of the byte offset where each sample starts within each CSV file, in order to build an
@@ -26,6 +25,7 @@ class MultiDataset(Dataset):
         self.char_height = 8
         self.char_width = 8
 
+        # Append dataset type (train/test) to data root, which was set in the constructor of the parent class
         if train:
             self.data_root = os.path.join(self.data_root, 'train')
         else:

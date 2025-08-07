@@ -1,11 +1,9 @@
 import math
 import os
 import inspect
-import tempfile
 
 import numpy as np
 
-from torch.utils.data import Subset
 from tqdm import tqdm
 
 import torch
@@ -14,13 +12,12 @@ import torch.nn as nn
 
 from charset import Charset
 from const import INK_GREEN, INK_BLUE
-from datasets.ascii_c64 import ascii_c64, AsciiC64
+from datasets.ascii_c64 import AsciiC64
 from debugger import printc
 from net.ascii_c64_network import AsciiC64Network
 from performance_monitor import PerformanceMonitor
 import datasets.data_utils as data_utils
 import pytorch.model_manager as models
-from mlflow_config import ml_log_params
 import mlflow as ml
 from datetime import datetime
 
@@ -203,14 +200,14 @@ def train(class_counts, trainloader, testloader, train_params, dataset_name, cha
         # Create a progress bar
         progress = tqdm(enumerate(trainloader, 0), total=steps_per_epoch, colour='green')
 
-        # Training loop
-        for step, [input, targets] in progress:
+        """ Training loop """
+        for step, [inputs, targets] in progress:
             model.train()
             perf.reset()
 
-            input, targets = input.to(device), targets.to(device)
+            inputs, targets = inputs.to(device), targets.to(device)
 
-            output = model(input)
+            output = model(inputs)
             loss = criterion(output, targets)
             perf.loss.append(loss.item())
 

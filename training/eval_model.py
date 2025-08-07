@@ -17,7 +17,8 @@ from datasets.ascii_c64 import AsciiC64
 import datasets.data_utils as data
 import pytorch.model_manager as models
 
-def eval_model(dataset_type, dataset_name, model_filename, num_classes, charset):
+
+def eval_model(dataset_class, dataset_name, model_filename, num_classes, charset):
     batch_size = 40000
     device = data.get_device()
 
@@ -26,7 +27,7 @@ def eval_model(dataset_type, dataset_name, model_filename, num_classes, charset)
     model.eval()  # put the model in inference mode
 
     # Load the test dataset
-    dataset = data.get_dataset(train=False, dataset_type=dataset_type)
+    dataset = data.get_dataset(train=False, dataset_class=dataset_class)
     dataloader = torch.utils.data.DataLoader(
         dataset,
         batch_size=batch_size,
@@ -211,7 +212,7 @@ def visTensor(tensor, ch=0, allkernels=False, nrow=8, padding=1):
     plt.imshow(mygrid.transpose((1, 2, 0)))
 
 if __name__ == "__main__":
-    dataset_type = AsciiC64
+    dataset_class = AsciiC64
     dataset_name = 'ascii_c64'
     model_filename = 'ascii_c64-Mar17_21-33-46'
     num_classes = 254
@@ -221,4 +222,4 @@ if __name__ == "__main__":
     charset_name = 'c64.png'
     charset.load(charset_name, invert=False)
 
-    eval_model(dataset_type, dataset_name, model_filename, num_classes, charset)
+    eval_model(dataset_class, dataset_name, model_filename, num_classes, charset)

@@ -210,6 +210,38 @@ class Charset:
         charmap = cv.vconcat(rows)
         cv.imwrite(self.CHARSETS_DIR + filename, charmap)
 
+    def make_charset_index_table(charset):
+        """Generate an image showing each character and their corresponding index in the charset they were loaded from.
+        This is needed for model training, as those indexes will become the labels"""
+        char_width, char_height = charset.char_width, charset.char_height
+        size = (len(charset) * char_height, char_width * 5)
+        img = np.zeros(size, dtype=np.uint8)
+
+        for i, character in enumerate(charset):
+            img[i * char_height: (i + 1) * char_height, 0:char_width] = character.img
+            color = (255, 255, 255)
+            cv.putText(img, str(character.index), (char_width + 3, ((i + 1) * char_height) - 1), cv.FONT_HERSHEY_PLAIN,
+                       .75, color)
+
+        return img
+
+    def make_charset_sprite(charset):
+        '''Generate a single sprite containing the images of every character in the charset, to be used as image labels for
+        Tensorboard'''
+
+        char_width, char_height = 8, 16
+        cols = math.ceil(math.sqrt(len(charset)))
+        size = (cols * char_height, cols * char_width)
+        img = np.zeros(size, dtype=np.uint8)
+
+        for i, character in enumerate(charset):
+            col = i % cols
+            row = math.floor(i / cols)
+
+            img[row * char_height: (row + 1) * char_height, col * char_width: (col + 1) * char_width] = character.img
+
+        return img
+
     def show_histogram(self):
         weights = {}
         for char in self.chars:
@@ -224,8 +256,6 @@ class Charset:
         x, y = zip(*lists)  # unpack a list of pairs into two tuples
         plt.plot(x, y)
         plt.show()
-
-
 
     def show_low_res_maps(self, grid=True):
         """Returns an image showing the low-res maps and their associated full-res characters"""
@@ -310,7 +340,6 @@ class Charset:
             return defaultdict(type)
         else:
             return defaultdict(lambda: self.nested_dict(n - 1, type))
-
 
     def get_pixel_histogram(self):
         """ Generates a 8x8 image representing the frequency of white pixels averaged across all characters in this set"""

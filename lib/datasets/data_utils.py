@@ -1,3 +1,4 @@
+import importlib.util
 import math
 import os
 import random
@@ -7,15 +8,14 @@ import numpy as np
 import pandas as pd
 import torch
 from sklearn.model_selection import train_test_split
-import torchvision.transforms as transforms
-from torch.utils.data import Dataset
 
 from const import INK_BLUE
 from datasets.ascii_subset import AsciiSubset
 from datasets.data_augment import AugmentedAsciiDataset
 from datasets.multi_dataset import MultiDataset
 from debugger import printc
-
+from os.path import join, dirname, abspath
+from itertools import repeat
 
 class OneHot:
     def __init__(self, num_labels):
@@ -272,11 +272,29 @@ def get_dataset(train=True, dataset_class: Type[MultiDataset] = None, char_heigh
             augment_params=augment_params)
 
     print(f"Dataset: {dataset_class.__name__} loaded (Train: {train})")
-    print("-" * 50)
-    print_dataset_details(dataset)
-    print("-" * 50)
 
     return dataset
+
+
+def get_dataset_class(dataset_name):
+    dataset_name = dataset_name.lower()
+    dataset_full_path = join(PROJECT_ROOT, 'datasets', dataset_name, f'{dataset_name}_dataset.py')
+
+    # using reflection, parse the source code of the dataset file, and take the first class that ends in _dataset
+    file = importlib.util.spec_from_file_location(dataset_name, dataset_full_path)
+    module = importlib.util.module_from_spec(file)
+    file.loader.exec_module(module)
+    # search for our class
+    class_names = list(module.__dict__.keys())
+    class_name = None
+    for name in class_names:
+        if name.endswith('Dataset'):
+            class_name = name
+            break
+    if class_name:
+        return getattr(module, class_name)
+    else:
+        raise ValueError(f"Dataset {dataset_name} does not have a Dataset class that ends in 'Dataset'")
 
 def seed_init_fn(x):
     seed = 12345 + x
@@ -336,3 +354,12 @@ def calculate_padding(self, in_height, in_width, filter_height, filter_width, st
     pad_right = pad_along_width - pad_left
 
     print(f"Final padding (l,r,t,b): {pad_left}, {pad_right}, {pad_top}, {pad_bottom}")
+
+
+def starmap_with_kwargs(pool, fn, args_iter, kwargs_iter):
+    args_for_starmap = zip(repeat(fn), args_iter, kwargs_iter)
+    return pool.starmap(apply_args_and_kwargs, args_for_starmap)
+
+
+def apply_args_and_kwargs(fn, args, kwargs):
+    return fn(*args, **kwargs)

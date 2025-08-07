@@ -1,4 +1,5 @@
 # ANSI colors
+from os.path import dirname, abspath, join
 
 # Standard Colors
 INK_BLACK = "\033[30m"          # Black (standard)
@@ -27,3 +28,9 @@ INK_REVERSE = "\033[7m"         # Reversed (background/foreground swap)
 
 # Reset
 INK_END = "\033[0m"             # Reset all styles (simpler than "\033[0;0m")
+
+# Paths
+PROJECT_ROOT = dirname(abspath(join(dirname(__file__))))
+DATASETS_ROOT = join(PROJECT_ROOT, 'datasets')
+
+print(f"PROJECT_ROOT: {PROJECT_ROOT}")

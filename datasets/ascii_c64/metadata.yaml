@@ -1,0 +1,22 @@
+cmdline: python generate_training_data.py ['--invert']
+created: 2025-08-07_02:21:09
+description: ASCII art dataset generated from c64.png character set
+features:
+- description: 8x8 grayscale character patches
+  dtype: float32
+  name: image
+  shape:
+  - 8
+  - 8
+- description: Character class index
+  dtype: int64
+  name: label
+license: MIT
+name: ascii_c64
+source: https://github.com/garciahurtad/ascii_movie_pytorch
+statistics:
+  class_distribution: n/a
+  num_samples: 0
+  num_source_files: 2
+train_split: n/a
+version: 0.0.8

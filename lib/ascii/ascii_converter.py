@@ -18,6 +18,7 @@ class AsciiConverter:
     diff_full_threshold = 63
     diff_match_min_threshold = 0
     diff_match_max_threshold = 64
+    num_chars_converted = 0
 
     def __init__(self, charset:Charset, resolutions=(2, 4, 8)):
         self.charset:Charset = charset
@@ -113,6 +114,7 @@ class AsciiConverter:
 
                 output_image[y:y + self.char_height, x:x + self.char_width] = match_img
 
+        self.num_chars_converted += len(self.used_chars)
         return output_image
 
 
