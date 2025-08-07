@@ -21,6 +21,7 @@ datasets/*/processed/archive/*
 /training/tmp_data/*
 /training/mlruns/*
 /training/mlartifacts/*
+/training/dataset_tmp/*
 mlruns/*
 mlartifacts/*
 
