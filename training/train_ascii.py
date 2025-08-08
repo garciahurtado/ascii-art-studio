@@ -9,6 +9,8 @@ from tqdm import tqdm
 import torch
 import torch.optim as optim
 import torch.nn as nn
+from datetime import datetime
+import mlflow as ml
 
 from charset import Charset
 from const import INK_GREEN, INK_BLUE
@@ -18,8 +20,7 @@ from net.ascii_c64_network import AsciiC64Network
 from performance_monitor import PerformanceMonitor
 import datasets.data_utils as data_utils
 import pytorch.model_manager as models
-import mlflow as ml
-from datetime import datetime
+import mlflow_utils
 
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 
@@ -28,8 +29,7 @@ def train_model(num_labels, dataset_class, charset):
     torch_rnd_seed = np_rnd_seed = 123456
     torch.manual_seed(torch_rnd_seed)
     np.random.seed(np_rnd_seed)
-
-    ml.start_run()
+    mlflow_utils.start_run()
 
     char_width = charset.char_width
     char_height = charset.char_height
@@ -38,21 +38,21 @@ def train_model(num_labels, dataset_class, charset):
     # Define training parameters, including the new augmentation flag
     train_params = {
         'batch_size': 2048,
-        'test_batch_size': 1024 * 5,
+        'test_batch_size': 1024 * 4,
         'train_test_split': 0.8,  # This is purely for logging, not functional
         'num_epochs': 30,
         'num_labels': num_labels,
-        'learning_rate': 0.0003,
+        'learning_rate': 0.002,
         'decay_rate': 0.98,
-        'decay_every_steps': 512,
-        'test_every_steps': 64,
+        'decay_every_samples': 16000,
+        'test_every_steps': 16,
         'log_every': 4,
         'augment_training_data': False  # Master switch for augmentation
     }
 
     # Calculate derived parameters
-    # train_params['decay_every_steps'] = math.ceil(train_params['decay_every_samples'] / train_params['batch_size'])
-    train_params['decay_every_samples'] = math.ceil(train_params['decay_every_steps'] * train_params['batch_size'])
+    train_params['decay_every_steps'] = math.ceil(train_params['decay_every_samples'] / train_params['batch_size'])
+    # train_params['decay_every_samples'] = math.ceil(train_params['decay_every_steps'] * train_params['batch_size'])
 
     augment_params = None
     # Conditionally log augmentation parameters if enabled
@@ -75,22 +75,33 @@ def train_model(num_labels, dataset_class, charset):
 
     # Load datasets
     trainset = data_utils.get_dataset(
-        subdir='train',
+        subdir='processed/train',
         dataset_class=dataset_class,
         char_width=char_width,
         char_height=char_height)
 
     testset = data_utils.get_dataset(
-        subdir='test',
+        subdir='processed/test',
         dataset_class=dataset_class,
         char_width=char_width,
         char_height=char_height)
+
+    trainset.load_metadata()
+    meta = trainset.metadata
+
+    ml.log_artifact(trainset.metadata_path)
 
     # log basic dataset config
     ml.log_params({
         'torch_rnd_seed': torch_rnd_seed,
         'np_rnd_seed': np_rnd_seed,
         'dataset_name': dataset_name,
+        'dataset_class': dataset_class.__name__,
+        'dataset_version': trainset.metadata['version'] if trainset.metadata else trainset.version,
+        'dataset_created_on': trainset.metadata['created'],
+        'dataset_num_classes': meta['num_classes'],
+        'dataset_train_count': len(trainset),
+        'dataset_test_count': len(testset),
         'char_width': char_width,
         'char_height': char_height,
         'charset_filename': charset.filename,
@@ -136,7 +147,7 @@ def train(class_counts, trainloader, testloader, train_params, dataset_name, cha
 
     # Get class counts
     class_cardinality = len(class_counts)
-    print(f"Found {class_cardinality} classes in dataset")
+    print(f"Found {class_cardinality} classes in dataset (from class_counts)")
     print(f"Charset {charset.filename} has {len(charset.chars)} chars.")
 
     # This needs to be made configurable ASAP
@@ -174,8 +185,7 @@ def train(class_counts, trainloader, testloader, train_params, dataset_name, cha
     optimizer = optim.Adam(model.parameters(), lr=train_params['learning_rate'])
 
     # Set up the learning rate scheduler
-    # scheduler = optim.lr_scheduler.ExponentialLR(optimizer, train_params['decay_rate'])
-    scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=20, factor=0.5)
+    scheduler = optim.lr_scheduler.ExponentialLR(optimizer, train_params['decay_rate'])
 
     # Set up Tensorboard writer
     # Add image embeddings
@@ -218,9 +228,9 @@ def train(class_counts, trainloader, testloader, train_params, dataset_name, cha
             global_step = (epoch * steps_per_epoch) + step
 
             # +1 below makes sure we don't decay on step 0
-            # if ((global_step + 1) % train_params['decay_every_steps']) == 0:
-            #     # decrease the learning rate
-            #     scheduler.step()
+            if ((global_step + 1) % train_params['decay_every_steps']) == 0:
+                # decrease the learning rate
+                scheduler.step()
 
             # Is it time to log?
             if (global_step % log_every) == 0:
@@ -231,7 +241,7 @@ def train(class_counts, trainloader, testloader, train_params, dataset_name, cha
                 }, step=global_step)
 
             if ((global_step + 1) % train_params['test_every_steps']) == 0:
-                # perform validation on test dataset
+                # perform validation using test dataset
                 test_accuracy = 0
                 test_perf.reset()
 
@@ -258,7 +268,6 @@ def train(class_counts, trainloader, testloader, train_params, dataset_name, cha
 
                 # decrease the learning rate
                 scheduler.step(test_loss)
-
 
             avg_loss = perf.get_avg_loss()
             desc = f"Step: {step} / Loss: "

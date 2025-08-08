@@ -16,7 +16,7 @@ class AsciiDataset(Dataset):
     metadata_path: str  # full path to the metadata.yaml file
     data_root: str
 
-    def __init__(self, dataset_name, subdir=None):
+    def __init__(self, dataset_name, subdir=None, **kwargs):
         self.dataset_name = dataset_name
         self.dataset_path = os.path.join(DATASETS_ROOT, dataset_name)
         self.metadata_path = os.path.join(self.dataset_path, self.metadata_filename)

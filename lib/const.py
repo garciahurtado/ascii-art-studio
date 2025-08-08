@@ -33,3 +33,9 @@ INK_END = "\033[0m"             # Reset all styles (simpler than "\033[0;0m")
 PROJECT_ROOT = path.dirname(path.abspath(path.join(path.dirname(__file__))))
 DATASETS_DIR = 'datasets'
 DATASETS_ROOT = path.join(PROJECT_ROOT, DATASETS_DIR)
+
+"""
+Training data generation defaults for images:
+"""
+out_min_width, out_min_height = 384, 384  # 48x48 characters of 8x8
+out_max_width, out_max_height = 528, 528  # 64x64 characters of 8x8

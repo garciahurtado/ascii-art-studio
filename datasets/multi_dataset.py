@@ -49,6 +49,10 @@ class MultiDataset(AsciiDataset):
         zero_count = 0
 
         for filename in files:
+            # take only files ending in ascii-data.csv
+            if not filename.endswith('ascii-data.csv'):
+                continue
+
             self.found_first_nonzero = False
             full_path = os.path.join(self.data_root, filename)
 
@@ -140,7 +144,7 @@ class MultiDataset(AsciiDataset):
         return filename, offset
 
     def get_class_counts(self, test=False):
-        filename = os.path.join(f"reports/{self.dataset_name}_class_counts.csv")
+        filename = os.path.join(self.data_root, f"{self.dataset_name}_class_counts.csv")
         return self.get_class_counts_from_csv(filename)
 
     def get_class_counts_from_csv(self, filename):

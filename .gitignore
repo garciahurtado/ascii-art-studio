@@ -13,6 +13,7 @@ datasets/*/processed/*.csv
 datasets/*/processed/*/*.csv
 datasets/*/processed/*.txt
 datasets/*/processed/*/*.txt
+datasets/*/processed/*
 
 /logs/
 /data/

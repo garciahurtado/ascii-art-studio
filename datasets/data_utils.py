@@ -12,10 +12,8 @@ from sklearn.model_selection import train_test_split
 from const import INK_BLUE, PROJECT_ROOT, DATASETS_DIR
 from datasets.ascii_dataset import AsciiDataset
 from datasets.ascii_subset import AsciiSubset
-from datasets.data_augment import AugmentedAsciiDataset
 from datasets.multi_dataset import MultiDataset
 from debugger import printc
-from os.path import join, dirname, abspath
 from itertools import repeat
 
 class OneHot:
@@ -251,7 +249,7 @@ def split_dataset(dataset, test_split=0.2, random_state=0, charset_name=None):
     return trainset, testset
 
 
-def get_dataset(dataset_class: Type[MultiDataset] = None, char_height=8, char_width=8, subdir=None):
+def get_dataset(dataset_class: Type[MultiDataset] = None, char_height=8, char_width=8, subdir=None) -> MultiDataset:
     # Skip the OneHot transform as long as we are using CrossEntropyLoss
     # transform = transforms.Compose(
     #     [transforms.ToTensor()])
@@ -266,7 +264,7 @@ def get_dataset(dataset_class: Type[MultiDataset] = None, char_height=8, char_wi
     dataset.char_width = char_width
     dataset.char_height = char_height
 
-    print(f"Dataset: {dataset_class.__name__} loaded (Train: {train})")
+    print(f"Dataset: {dataset_class.__name__} loaded (subdir: {subdir})")
 
     return dataset
 
@@ -351,6 +349,14 @@ def calculate_padding(self, in_height, in_width, filter_height, filter_width, st
 
     print(f"Final padding (l,r,t,b): {pad_left}, {pad_right}, {pad_top}, {pad_bottom}")
 
+
+def is_dir_empty(path):
+    """ Checks if a directory is empty of files, ignoring subdirectories """
+    with os.scandir(path) as entries:
+        # The generator expression checks each entry.
+        # `any()` will return True if it finds at least one file.
+        # We want the opposite, so we negate it with `not`.
+        return not any(entry.is_file() for entry in entries)
 
 def starmap_with_kwargs(pool, fn, args_iter, kwargs_iter):
     args_for_starmap = zip(repeat(fn), args_iter, kwargs_iter)

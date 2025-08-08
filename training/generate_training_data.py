@@ -9,6 +9,8 @@ import sys
 import arrow
 from collections import Counter
 import random
+
+from datasets.data_augment import create_augmented_images
 import datasets.data_utils as data_utils
 import cv2 as cv
 import matplotlib.pyplot as plt
@@ -22,6 +24,7 @@ from charset import Charset
 
 from ascii import FeatureAsciiConverter
 from const import INK_GREEN, INK_YELLOW
+from const import out_max_height, out_max_width, out_min_height, out_min_width
 from cvtools.processing_pipeline import ProcessingPipeline
 from cvtools.size_tools import Dimensions, adjust_img_size
 from datasets.ascii_dataset import AsciiDataset
@@ -503,12 +506,6 @@ def eval_determinism():
 
 
 if __name__ == "__main__":
-    """
-    Defaults:
-    """
-    out_min_width, out_min_height = 384, 384        # 48x48 characters of 8x8
-    out_max_width, out_max_height = 528, 528        # 64x64 characters of 8x8
-
     parser = argparse.ArgumentParser(description='Generate training data for the ASCII NN Converter.')
     parser.add_argument(
         '--img-only',
@@ -565,6 +562,11 @@ if __name__ == "__main__":
         help='Subdirectory of DATASETS_ROOT to use (ie: DATASETS_ROOT/train) (count labels only)',
         action='store',
         default='processed/train')
+    parser.add_argument(
+        '--augment',
+        help='Augment the dataset with additional images, shifted horizontally and vertically from the original',
+        action='store_true',
+        default=False)
 
     args = parser.parse_args()
     img_only = args.img_only
@@ -590,6 +592,29 @@ if __name__ == "__main__":
         in_data_dir = os.path.realpath(os.path.join(DATASETS_ROOT, dataset_name, DATA_DIR))
         out_data_dir = in_data_dir  # Use the same directory as in_data_dir
         shuffle_and_rebatch_csvs(in_data_dir, out_data_dir, split_ratio=split_ratio)
+        exit(0)
+    elif args.augment:
+        in_dir = IN_IMG_DIR
+        out_dir = OUT_IMG_DIR
+        if not os.path.exists(in_dir):
+            printc(f"Error: {in_dir} does not exist. Please create it or choose a different directory.")
+
+        # check that out_data_dir exists and is empty
+        if not os.path.exists(out_dir):
+            os.makedirs(out_dir)
+
+        if not data_utils.is_dir_empty(out_dir):
+            printc(
+                f"Error: {out_dir} already exists and is not empty. Please delete it or choose a different directory.")
+            exit(1)
+
+        num_augmented = create_augmented_images(in_dir, out_dir)
+
+        if num_augmented:
+            print(f"Created {num_augmented} augmented images in {out_dir}")
+        else:
+            printc(f"No source images found in {in_dir}")
+
         exit(0)
     else:
         create_training_data(min_dims, max_dims, export_csv=(not img_only), color_only=color_only,

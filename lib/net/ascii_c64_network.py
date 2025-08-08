@@ -15,7 +15,7 @@ class AsciiC64Network(nn.Module):
         # First conv layer: 1x8x8 -> 64x8x8 (same spatial size due to padding=1)
         self.conv1 = nn.Conv2d(
             1,
-            16,
+            32,
             kernel_size=3,
             padding=1,
             stride=1
@@ -33,11 +33,11 @@ class AsciiC64Network(nn.Module):
 
         # Calculate the size for the first fully connected layer
         # After conv2: 64 channels * 5 * 5 = 1600
-        self.fc1 = nn.Linear(1024, 512)
-        self.fc1_norm = nn.BatchNorm1d(512)
+        self.fc1 = nn.Linear(2048, 256)
+        self.fc1_norm = nn.BatchNorm1d(256)
 
         # Final output layer
-        self.fc2 = nn.Linear(512, num_labels)
+        self.fc2 = nn.Linear(256, num_labels)
 
     def forward(self, x):
         # Convolution and pooling layers

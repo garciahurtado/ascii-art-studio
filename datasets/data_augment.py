@@ -1,75 +1,83 @@
-from torch.utils.data import Dataset
-from torchvision import transforms
-from datasets.multi_dataset import MultiDataset
+import math
+import os
 
-class AugmentedAsciiDataset(Dataset):
+import argparse
+import numpy as np
+from PIL import Image
+
+from cvtools import size_tools
+from cvtools.size_tools import Dimensions
+from const import out_min_width, out_min_height, out_max_width, out_max_height
+
+out_min_dims = Dimensions(out_min_width, out_min_height)
+out_max_dims = Dimensions(out_max_width, out_max_height)
+
+
+def create_augmented_images(input_dir, output_dir):
     """
-    Wraps a dataset to apply on-the-fly data augmentation for training.
-
-    This class takes an existing dataset and applies a series of transformations
-    to the images only when in 'train' mode. For validation/testing, it only
-    converts the image to a tensor.
+    Generates a new, augmented dataset by shifting source images.
+    returns: number of images created
     """
+    # Create the output directory if it doesn't exist
+    os.makedirs(output_dir, exist_ok=True)
+    new_img_count = 0
+    input_dir = os.path.realpath(input_dir)
+    for image_name in os.listdir(input_dir):
+        if not image_name.endswith(".png"):
+            continue
 
-    def __init__(self, original_dataset: MultiDataset, is_train=True, augment_params: dict = None):
-        """
-        Initializes the wrapper and the transformation pipeline.
+        source_image = Image.open(os.path.join(input_dir, image_name))
 
-        Args:
-            original_dataset (Dataset): The source dataset (e.g., AsciiC64_Dataset).
-            is_train (bool): If True, applies the full augmentation pipeline.
-            augment_params (dict): A dictionary of augmentation settings.
-        """
-        self.original_dataset = original_dataset
-        self.is_train = is_train
+        # Step 1: Figure out final, resized dimensions
+        source_dims = Dimensions(source_image.size[0], source_image.size[1])
+        out_dims = size_tools.adjust_img_size(source_dims, out_min_dims, out_max_dims)
+        out_dims = Dimensions(out_dims[0], out_dims[1])
 
-        # Default transformation (no augmentation)
-        transform_list = [transforms.ToPILImage(), transforms.ToTensor()]
+        # Now that we know the output size, we can work backwards to decide how much of a shift to apply:
+        # - out_shift: the desired shift (in pixels) of the resized image
+        # - orig_shift: the shift we will have to apply to the original image in order to get out_shift after resizing
 
-        params = augment_params
-        if self.is_train and params:
-            # If training and params are provided, build the augmentation pipeline.
-            aug_transform_list = [transforms.ToPILImage()]
+        final_shift = 4, 0
+        resize_ratio = source_dims.width / out_dims.width
+        orig_shift = Dimensions(
+            math.ceil(final_shift[0] * resize_ratio),
+            math.ceil(final_shift[1] * resize_ratio))
 
-            if "RandomRotation_degrees" in params:
-                aug_transform_list.append(transforms.RandomRotation(
-                    degrees=params["RandomRotation_degrees"],
-                    fill=params.get("RandomAffine_fill", 0)
-                ))
+        print(f"Will shift original by {orig_shift.width}x{orig_shift.height} to get {final_shift[0]}x{final_shift[1]}")
 
-            if "RandomAffine_translate_x" in params or "RandomAffine_translate_y" in params:
-                translate_x = params.get("RandomAffine_translate_x", 0.0)
-                translate_y = params.get("RandomAffine_translate_y", 0.0)
-                aug_transform_list.append(transforms.RandomAffine(
-                    degrees=0,  # Rotation is handled above
-                    translate=(translate_x, translate_y),
-                    fill=params.get("RandomAffine_fill", 0)
-                ))
+        # Step 2: Generate multiple augmented images by shifting
+        # for i in range(variants_per_image):
+        # Calculate a random shift
+        # Use a fixed seed for reproducibility
+        # np.random.seed(42)
 
-            if "RandomHorizontalFlip_p" in params:
-                aug_transform_list.append(transforms.RandomHorizontalFlip(
-                    p=params["RandomHorizontalFlip_p"]
-                ))
+        # shift_x = np.random.randint(0, target_dims[0] - original_size[0] + 1)
+        # shift_y = np.random.randint(0, target_dims[1] - original_size[1] + 1)
 
-            aug_transform_list.append(transforms.ToTensor())
-            transform_list = aug_transform_list
+        # Create a new blank canvas, the same size as the original image
+        canvas = Image.new('RGB', (source_dims.width, source_dims.height))
 
-        self.transform = transforms.Compose(transform_list)
+        # Paste the original image on top, but shifted
+        canvas.paste(source_image, (orig_shift.width, orig_shift.height))
+        final_image = canvas
 
-    def get_class_counts(self):
-        return self.original_dataset.get_class_counts()
+        # Save the new augmented image
+        px = f"{final_shift[0]:02d}x{final_shift[1]:02d}"
+        image_name = image_name[:-4]  # remove the .png
+        output_filename = f"{image_name}_shifted_{px}.png"
+        final_image.save(os.path.join(output_dir, output_filename))
+        new_img_count += 1
 
-    def __len__(self):
-        """Returns the total number of samples in the dataset."""
-        return len(self.original_dataset)
+    return new_img_count
 
-    def __getitem__(self, idx):
-        """
-        Retrieves a sample, applies the appropriate transformation, and returns it.
-        """
-        image_block, label = self.original_dataset[idx]
 
-        # The transform pipeline expects a PIL image.
-        image_block = self.transform(image_block)
+if __name__ == "__main__":
+    current_dir = os.path.dirname(os.path.abspath(__file__))
 
-        return image_block, label
+    parser = argparse.ArgumentParser()
+    parser.add_argument("input_dir", type=str, default=current_dir)
+    parser.add_argument("output_dir", type=str, default="augmented")
+    parser.add_argument("--variants_per_image", type=int, default=2)
+
+    args = parser.parse_args()
+    create_augmented_images(args.input_dir, args.output_dir, args.variants_per_image)
