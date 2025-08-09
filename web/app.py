@@ -31,7 +31,8 @@ from schemas import validate_conversion_data
 # Initialize the converter with C64 charset
 CHAR_WIDTH, CHAR_HEIGHT = 8, 8
 CHARSET_NAME = 'c64.png'
-MODEL_FILENAME = 'ascii_c64-Mar17_21-33-46'
+MODEL_FILENAME = 'ascii_c64'
+MODEL_VERSION = '28'
 MODEL_CHARSET = 'ascii_c64'
 PALETTE_NAME = 'atari.png'
 
@@ -50,26 +51,21 @@ os.makedirs(TEMP_DIR, exist_ok=True)
 def init_converter():
     """Initialize the ASCII converter with C64 settings.
     """
-    try:
-        # Load the C64 charset
-        charset = Charset(CHAR_WIDTH, CHAR_HEIGHT)
-        charset.load(CHARSET_NAME, invert=False)
-        NUM_LABELS = len(charset.chars)
+    # Load the C64 charset
+    charset = Charset(CHAR_WIDTH, CHAR_HEIGHT)
+    charset.load(CHARSET_NAME, invert=False)
+    NUM_LABELS = len(charset.chars)
 
-        # Initialize the converter with C64 model
-        converter = NeuralAsciiConverterPytorch(
-            charset=charset,
-            model_filename=MODEL_FILENAME,
-            model_charset=MODEL_CHARSET,
-            charsize=[CHAR_WIDTH, CHAR_HEIGHT],
-            num_labels=NUM_LABELS
-        )
+    # Initialize the converter with C64 model
+    converter = NeuralAsciiConverterPytorch(
+        charset=charset,
+        model_filename=MODEL_FILENAME,
+        model_charset=MODEL_CHARSET,
+        charsize=[CHAR_WIDTH, CHAR_HEIGHT],
+        num_labels=NUM_LABELS
+    )
 
-        return converter
-
-    except Exception as e:
-        logger.error(f"Failed to initialize C64 converter: {e}")
-        return None
+    return converter
 
 def init_palette():
     # Initialize the palette

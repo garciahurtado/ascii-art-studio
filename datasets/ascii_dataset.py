@@ -21,9 +21,12 @@ class AsciiDataset(Dataset):
         self.dataset_path = os.path.join(DATASETS_ROOT, dataset_name)
         self.metadata_path = os.path.join(self.dataset_path, self.metadata_filename)
 
-        subdir = os.path.join(self.dataset_path, subdir)
+        if subdir:
+            subdir = os.path.join(self.dataset_path, subdir)
+            self.data_root = os.path.realpath(subdir)
+        else:
+            self.data_root = os.path.realpath(self.dataset_path)
 
-        self.data_root = os.path.realpath(subdir)
         if not os.path.exists(self.data_root):
             raise FileNotFoundError(f"Data root does not exist: {self.data_root}. Please create it and try again.")
 

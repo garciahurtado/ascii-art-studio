@@ -1,5 +1,6 @@
 import inspect
 import os
+import shutil
 import sys
 import types
 import torch
@@ -7,40 +8,49 @@ from torch import nn
 from datetime import datetime
 
 from charset import Charset
-from const import INK_BLUE
+from const import INK_BLUE, DATASETS_ROOT
 from debugger import printc
 
 MODELS_ROOT = os.path.abspath('../models/')
-CODE_ROOT = os.path.abspath('../lib/net/')
 
 def load_model(dataset, filename, num_labels):
-    base_filename = os.path.join(MODELS_ROOT, dataset, filename)
-    filename = base_filename + ".pt"
-    printc(f"Loading Pytorch model from: {filename}", INK_BLUE)
+    """
+    Loads a Pytorch model from two files: the checkpoint file with the model state dictionary, and the source code
+    of the model class, by the same name as the checkpoint, but with a .py extension.
+    """
+    base_path = get_full_model_path(dataset, filename)
+    model_filename = base_path + ".pt"
+    source_filename = base_path + ".py"
+
+    printc(f"Loading Pytorch model from: {model_filename}", INK_BLUE)
     printc(f"Pytorch version: {torch.__version__}", INK_BLUE)
     printc(f"Python version: {sys.version}", INK_BLUE)
     printc(f"CUDA version: {torch.version.cuda}", INK_BLUE)
     printc(f"Models root: {MODELS_ROOT}", INK_BLUE)
-    printc(f"Code root: {CODE_ROOT}", INK_BLUE)
+    printc(f"Datasets / sources root: {DATASETS_ROOT}", INK_BLUE)
 
-    checkpoint = torch.load(filename)
-
-    # Load the source code of your custom model
-    with open(base_filename + ".py", 'r') as f:
+    # Load the source code of our custom model, by the same name as the checkpoint
+    with open(source_filename, 'r') as f:
         model_code = f.read()
 
-    # Create a module from the model and load / run the source code
-    module_name = 'custom_model_module'
+    # Create a module object from the model code and load / run the source code
+    module_name = 'model_class_module'
     model_module = types.ModuleType(module_name)
     exec(model_code, model_module.__dict__)
 
-    # Instantiate the model class (this class name needs to be made dynamic)
-    model = model_module.AsciiClassifierNetwork(num_labels=num_labels)
+    # Instantiate the model class (@TODO: this class name needs to be made dynamic)
+    model = model_module.AsciiC64Network(num_labels=num_labels)
 
     # Load the state dictionary
-    model.load_state_dict(checkpoint.state_dict())
+    checkpoint = torch.load(model_filename, weights_only=False)
+    model.load_state_dict(checkpoint['model_state_dict'])
 
     return model
+
+
+def save_model_source(source_filename, dataset, target_dir):
+    target_filename = os.path.join(target_dir, dataset + ".py")
+    shutil.copyfile(source_filename, target_filename)
 
 def make_model_directory(model_name: str, dataset: str, base_dir: str = None) -> str:
     """
@@ -58,18 +68,19 @@ def make_model_directory(model_name: str, dataset: str, base_dir: str = None) ->
         printc(f"ERROR: model directory already exists: {full_dir}")
         exit(1)
 
-    # os.mkdir(full_dir)
+    os.mkdir(full_dir)
     print(f"Created model directory: {full_dir}")
 
     return full_dir
 
-def get_model_filename(dataset, model_dir):
+
+def get_full_model_path(dataset, filename):
     """
     Returns the full path to the model file, minus the extension
     """
-    model_file = os.path.join(model_dir, dataset)
+    model_dir = os.path.realpath(os.path.join(MODELS_ROOT, dataset, filename))
 
-    return model_file
+    return model_dir
 
 def save_checkpoint(
     model, 

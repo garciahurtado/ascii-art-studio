@@ -37,15 +37,15 @@ def train_model(num_labels, dataset_class, charset):
 
     # Define training parameters, including the new augmentation flag
     train_params = {
-        'batch_size': 2048,
-        'test_batch_size': 1024 * 4,
+        'batch_size': 1024,
+        'test_batch_size': 1024 * 8,
         'train_test_split': 0.8,  # This is purely for logging, not functional
-        'num_epochs': 30,
+        'num_epochs': 1,
         'num_labels': num_labels,
-        'learning_rate': 0.002,
+        'learning_rate': 0.001,
         'decay_rate': 0.98,
-        'decay_every_samples': 16000,
-        'test_every_steps': 16,
+        'decay_every_samples': 64000,
+        'test_every_steps': 64,
         'log_every': 4,
         'augment_training_data': False  # Master switch for augmentation
     }
@@ -156,10 +156,14 @@ def train(class_counts, trainloader, testloader, train_params, dataset_name, cha
     source_class_file = inspect.getfile(model.__class__)
     model.to(device)
 
+    # Alongside the model weights, we also save the current version of the model source code
     model_dir = models.make_model_directory(model_family, dataset_name)
-    model_filename = models.get_model_filename(dataset_name, model_dir)
+    model_filename = os.path.join(model_dir, f"{dataset_name}.pt")
 
-    printc(f"Trained model will be saved to: {model_filename}", INK_BLUE)
+    models.save_model_source(source_class_file, dataset_name, model_dir)
+
+    # model_filename = models.get_full_model_dir(dataset_name, model_dir)
+    printc(f"Trained weights will be saved to: {model_filename}", INK_BLUE)
 
     # Log hyperparameters
     ml.log_params(train_params)
@@ -266,9 +270,6 @@ def train(class_counts, trainloader, testloader, train_params, dataset_name, cha
                     "test/accuracy": test_accuracy
                 }, step=global_step)
 
-                # decrease the learning rate
-                scheduler.step(test_loss)
-
             avg_loss = perf.get_avg_loss()
             desc = f"Step: {step} / Loss: "
             desc += f"{avg_loss:.3f}" if avg_loss else "n/a"
@@ -300,8 +301,6 @@ def train(class_counts, trainloader, testloader, train_params, dataset_name, cha
         print(f"Checkpoint saved to {checkpoint_path}")
         printc("== End of Epoch ==", INK_GREEN)
 
-        ml.log_artifact(checkpoint_path)
-
         # Log epoch metrics
         ml.log_metrics({
             "epoch/train_accuracy": metrics['train_accuracy'],
@@ -315,7 +314,7 @@ def train(class_counts, trainloader, testloader, train_params, dataset_name, cha
 
     full_model_name = f"{model_family}-{dataset_name}"
 
-    # Save the final model using MLflow
+    # Save the final model weights to disk
     final_model_path = os.path.join(model_dir, f"{full_model_name}.pt")
     torch.save({
         'epoch': train_params['num_epochs'] - 1,
@@ -324,10 +323,11 @@ def train(class_counts, trainloader, testloader, train_params, dataset_name, cha
         'metrics': metrics,
         'timestamp': datetime.now().isoformat()
     }, final_model_path)
-    
+
+    # Save the final model weights to MLFlow
     ml.log_artifact(final_model_path)
-    
-    # Log the final model
+
+    # Log the final model to MLFlow
     ml.pytorch.log_model(
         pytorch_model=model,
         name=model_family,

@@ -225,7 +225,8 @@ def create_training_data(min_dims: Dimensions, max_dims: Dimensions, export_csv=
     end_time = arrow.utcnow()
     time_diff = end_time - start_time
     num_files_processed = len(all_args)  # weird way to get the number of files processed
-    print(f"*** DONE: {num_files_processed} images processed by {num_threads} threads in: {time_diff} ***")
+    print(
+        f"*** DONE: created {total_num_samples} samples from {num_files_processed} images processed by {num_threads} threads in: {time_diff} ***")
 
     """ Now that the dataset is complete, create the metadata file """
     dataset = AsciiDataset(dataset_name)
