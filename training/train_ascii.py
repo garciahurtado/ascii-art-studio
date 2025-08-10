@@ -37,14 +37,14 @@ def train_model(num_labels, dataset_class, charset):
 
     # Define training parameters, including the new augmentation flag
     train_params = {
-        'batch_size': 1024,
+        'batch_size': 2048,
         'test_batch_size': 1024 * 8,
         'train_test_split': 0.8,  # This is purely for logging, not functional
-        'num_epochs': 1,
+        'num_epochs': 20,
         'num_labels': num_labels,
-        'learning_rate': 0.001,
+        'learning_rate': 0.002,
         'decay_rate': 0.98,
-        'decay_every_samples': 64000,
+        'decay_every_samples': 192000,
         'test_every_steps': 64,
         'log_every': 4,
         'augment_training_data': False  # Master switch for augmentation
@@ -121,7 +121,7 @@ def train_model(num_labels, dataset_class, charset):
         trainset,
         batch_size=train_params['batch_size'],
         shuffle=True,
-        num_workers=3,
+        num_workers=6,
         prefetch_factor=1,
         drop_last=True,
         worker_init_fn=data_utils.seed_init_fn)
@@ -130,7 +130,7 @@ def train_model(num_labels, dataset_class, charset):
         testset,
         batch_size=train_params['test_batch_size'],
         shuffle=True,
-        num_workers=3,
+        num_workers=4,
         prefetch_factor=1,
         drop_last=True,
         worker_init_fn=data_utils.seed_init_fn)
@@ -414,7 +414,7 @@ if __name__ == "__main__":
     print(f"  char height: {char_height}")
     print(f"  count: {len(charset.chars)}")
 
-    num_classes = len(charset.chars) * 2
+    num_classes = len(charset.chars)
     dataset_name = dataset_class.dataset_name
 
 

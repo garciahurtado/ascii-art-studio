@@ -1,6 +1,7 @@
 import os
 import sys
 import traceback
+import uuid
 
 from cvtools.processing_pipeline import ProcessingPipeline
 from logging_config import logger
@@ -226,10 +227,16 @@ def convert_image():
         logger.info(f"Starting image processing: {width}x{height}, brightness={brightness}, contrast={contrast}")
         final_img = pipeline.run(img)
 
+        # Save the contrast image, for debugging. Create a GUID type filename
+        guid = str(uuid.uuid4())
+        contrast_img_path = os.path.join(tempfile.gettempdir(), f'{guid}-contrast.png')
+        cv2.imwrite(contrast_img_path, pipeline.contrast_img)
+        logger.info(f"Saved contrast image to: {contrast_img_path}")
+
         # Convert back to RGB for web display
         final_img = cv2.cvtColor(final_img, cv2.COLOR_BGR2RGB)
 
-        # Convert the color image to bytes
+        # Convert the color image to bytes and send it back as an HTTP response
         img_pil = Image.fromarray(final_img)
         img_io = BytesIO()
         img_pil.save(img_io, 'PNG')

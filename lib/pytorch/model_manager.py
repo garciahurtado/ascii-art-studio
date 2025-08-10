@@ -8,10 +8,9 @@ from torch import nn
 from datetime import datetime
 
 from charset import Charset
-from const import INK_BLUE, DATASETS_ROOT
+from const import INK_BLUE, DATASETS_ROOT, MODELS_ROOT
 from debugger import printc
 
-MODELS_ROOT = os.path.abspath('../models/')
 
 def load_model(dataset, filename, num_labels):
     """
@@ -40,10 +39,16 @@ def load_model(dataset, filename, num_labels):
 
     # Instantiate the model class (@TODO: this class name needs to be made dynamic)
     model = model_module.AsciiC64Network(num_labels=num_labels)
+    # model = model_module.AsciiClassifierNetwork(num_labels=num_labels)
 
     # Load the state dictionary
     checkpoint = torch.load(model_filename, weights_only=False)
-    model.load_state_dict(checkpoint['model_state_dict'])
+
+    if type(checkpoint) is dict:  # backwards compatibility for old checkpoint (object returned) vs new checkpoint (dict returned)
+        model.load_state_dict(checkpoint['model_state_dict'])
+    else:
+        # it's an object
+        model.load_state_dict(checkpoint.state_dict())
 
     return model
 

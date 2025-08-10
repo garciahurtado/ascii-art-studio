@@ -1,4 +1,7 @@
+import argparse
 import collections
+import os
+import sys
 import time
 import cv2 as cv
 import numpy as np
@@ -17,6 +20,7 @@ from color.palette import Palette
 from cvtools import contrast_filters as filters, size_tools as tools, color_filters as colors
 
 from ui.video_player import VideoPlayer
+from const import PROJECT_ROOT
 
 print("OpenCV Version: ")
 print(cv.__version__)
@@ -34,6 +38,14 @@ FRAME_FULL = 1
 FRAME_DIFF = 2
 FRAME_PALETTE = 3
 
+dilate_kernel = np.array(([0, 1, 0], [1, 2, 1], [0, 1, 0]), np.uint8)
+is_full = True  # First frame is always a full frame
+
+PALETTE_CHANGE_SIGNAL = 77
+
+last_frame_time = 0
+last_palette = None
+binary_output_file = 'web/static/charpeg/video_stream.cpeg'
 
 # Show controls
 def show_controls():
@@ -43,26 +55,11 @@ def show_controls():
     cv.createTrackbar('resizeth', 'controls', 64, 256, set_resize_threshold)
     cv.resizeWindow('controls', 400, 100)
 
-
-dilate_kernel = np.array(([0, 1, 0], [1, 2, 1], [0, 1, 0]), np.uint8)
-
-
-is_full = True  # First frame is always a full frame
-
-
-PALETTE_CHANGE_SIGNAL = 77
-
-last_frame_time = 0
-last_palette = None
-binary_output_file = 'web/static/charpeg/video_stream.cpeg'
-
-
 @looper.fps(30)
-def run_block_contrast(ui, pipeline, video_player=None, layer_window=None):
+def run_block_contrast(ui, pipeline, width, height, video_player=None, layer_window=None):
     global total_chars
     global ascii_scale
     global show_grid
-    global width, height
     global now
 
     ## VIDEO
@@ -78,12 +75,11 @@ def run_block_contrast(ui, pipeline, video_player=None, layer_window=None):
     # original = cv.imread(img_path)
 
     ## PROCESSING ##
-
-    # final1, final2, final3 = pipeline.run(original)
-    # final = final3
     final = pipeline.run(original)
-
     # _, final = colors.palettize(final, palette)
+
+    # Double up the final image
+    final = cv.resize(final, (width * 4, height * 4), interpolation=cv.INTER_NEAREST)
 
     chars = converter.match_char_map
     num_chars = converter.count_used_chars()
@@ -375,8 +371,9 @@ def run_orig():
 
     return ui.get_key()
 
-def get_pipeline(converter, height, width, char_height, char_width):
-    pipeline = ProcessingPipeline()
+
+def get_pipeline(converter, width, height, char_height, char_width):
+    pipeline = ProcessingPipeline(brightness=100, contrast=3)
     pipeline.converter = converter
     pipeline.img_width = width
     pipeline.img_height = height
@@ -387,38 +384,37 @@ def get_pipeline(converter, height, width, char_height, char_width):
     return pipeline
 
 
-if __name__ == "__main__":
-    # width, height = 496, 368 # For images
-    # width, height = 992, 736 # For images
-    width, height = 640, 368  # For video
-    # width, height = 640, 272 # Luke Darth video
-
-    # Load a charset
-    char_width, char_height = 8, 16
-    charset = Charset(char_width, char_height)
-    charset_name = 'ubuntu-mono_8x16.png'
-    charset.load(charset_name, invert=False)
-    charmap = []
-    num_chars = 734
-
+def run_player(ui, charset, converter, video_file, out_width, out_height):
     # Load a palette
-    palette = Palette(char_width=char_width, char_height=char_height)
+    palette = Palette(char_width=charset.char_width, char_height=charset.char_height)
     palette.load('atari-st.png')
-
-    # converter = NeuralAsciiConverterPytorch(charset, 'ubuntu_mono-Mar24_01-42-34', 'ubuntu_mono', [8, 16],
-    #                                         num_labels=num_chars)
-
-    converter = NeuralAsciiConverterPytorch(charset, 'ascii_c64-Mar17_03-27-13', 'ascii_c64', [8, 8],
-                                            num_labels=num_chars)
-
-    # converter = NeuralAsciiConverter(charset, '20211221-012355-UnsciiExt8x16', [char_width,char_height])
-
-    # converter = FeatureAsciiConverter(charset)
-    # converter.set_region((0, 5),(12, 25)) # Death star
-    # converter.set_region((35, 11),(60, 26)) # Star Wars
 
     # cv.imshow('charset_res_map', charset.show_low_res_maps())
 
+    #show_controls()
+    #show_video_controls(ui)
+    layer_window = None
+
+    # cProfile.run('run_block_contrast(ui, char_window, layer_window)', sort='tottime')
+    # run_all_frames_setup(ui)
+
+    pipeline = get_pipeline(converter, out_width * 2, out_height * 2, char_height, char_width)
+
+    player = VideoPlayer(video_file, resolution=(out_width, out_height), zoom=2)
+    player.play(sound=True)
+
+    """ 
+    Other functionality provided by the script:
+        run_convert_to_png(ui, charset, converter, 'resources/images/garcia-retrato.png')
+        run_webcam(ui, charset, converter)
+    """
+
+    run_block_contrast(ui, pipeline, width, height, player, layer_window=layer_window)
+    # 'resources/video/Star Wars - Opening Scene.mp4'
+    # 'resources/video/Akira - bike scene.mp4'
+
+
+def get_ui(converter):
     ui = BlockGridWindow('output')
     ui.converter = converter
     ui.show_fps = False
@@ -432,29 +428,65 @@ if __name__ == "__main__":
     char_window = None
 
     ui.char_picker_window = char_window
+    return ui
 
-    #show_controls()
-    #show_video_controls(ui)
-    # layer_window = create_layer_control()
-    layer_window = None
-    is_full = True
-    last_char_map = None
 
-    # cProfile.run('run_block_contrast(ui, char_window, layer_window)', sort='tottime')
-    # run_all_frames_setup(ui)
+def get_converter(charset, model_type, model_name):
+    char_width = charset.char_width
+    char_height = charset.char_height
+    num_chars = len(charset.chars)
+    converter = NeuralAsciiConverterPytorch(charset, model_name, model_type, [char_width, char_height],
+                                            num_labels=num_chars)
+    return converter
 
-    pipeline = get_pipeline(converter, height*2, width*2, char_height, char_width)
 
-    player = VideoPlayer('resources/video/Akira - bike scene.mp4', resolution=(width, height), zoom=1)
-    (width, height) = player.resolution
-    player.play(sound=True)
-
+if __name__ == "__main__":
     """ 
-    Other functionality provided by the script:
-        run_convert_to_png(ui, charset, converter, 'resources/images/garcia-retrato.png')
-        run_webcam(ui, charset, converter)
-    """
+        Other functionality provided by the script:
+            run_convert_to_png(ui, charset, converter, 'resources/images/garcia-retrato.png')
+            run_webcam(ui, charset, converter)
+        """
+    parser = argparse.ArgumentParser()
 
-    run_block_contrast(ui, pipeline, player, layer_window=layer_window)
-    # 'resources/video/Star Wars - Opening Scene.mp4'
-    # 'resources/video/Akira - bike scene.mp4'
+    parser.add_argument("--char_width", type=int, default=8)
+    parser.add_argument("--char_height", type=int, default=8)
+    parser.add_argument("--convert_to_png", action='store_true', default=False)
+    parser.add_argument("--output_dir", type=str, default="output")
+    parser.add_argument("--input", type=str, default=None, required="--convert_to_png" in sys.argv)
+    parser.add_argument("--webcam", action='store_true', default=False)
+    args = parser.parse_args()
+
+    # All actions require a charset
+    char_width, char_height = 8, 8
+    charset = Charset(char_width, char_height)
+    # charset.load('c64.png')
+    charset.load('amstrad-cpc.png')
+
+    # model_type = 'ascii_c64'
+    # model_name = 'ascii_c64'
+
+    model_type = 'AsciiAmstradCPC'
+    model_name = 'AsciiAmstradCPC-Mar06_23-14-37'
+    video_dir = os.path.join('resources', 'source_video')
+
+    if args.convert_to_png:
+        run_convert_to_png(args.char_width, args.char_height, args.input, args.output_dir)
+    elif args.webcam:
+        converter = get_converter(charset, model_type, model_name)
+        ui = get_ui(converter)
+        run_webcam(ui, charset, converter)
+    else:
+        # Run desktop video player
+        # width, height = 496, 368 # For images
+        # width, height = 992, 736 # For images
+        # width, height = 640, 368  # For video
+        width, height = 320, 184  # For video . Halved because we apply x2 zoom later
+        # width, height = 640, 272 # Luke Darth video
+
+        converter = get_converter(charset, model_type, model_name)
+        # converter.set_region((0, 5),(12, 25)) # Death star
+        # converter.set_region((35, 11),(60, 26)) # Star Wars
+
+        ui = get_ui(converter)
+        video_file = os.path.join(video_dir, 'Star Wars - Opening Scene.mp4')
+        run_player(ui, charset, converter, video_file, width, height)

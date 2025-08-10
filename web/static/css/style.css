@@ -47,7 +47,7 @@ header h4 {
 }
 
 .nav-bar .logo {
-    color: #4fbbc8;
+    color: #00FFFF;
     font-size: 1.6rem;
 }
 
@@ -71,7 +71,7 @@ header h4 {
 }
 .nav-links a.active {
     color: rgb(32 32 25);
-    background-color: #0897a9;
+    background-color: #00FFFF;
 }
 .nav-links a.active .material-icons {
     color: #666666;

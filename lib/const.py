@@ -33,6 +33,7 @@ INK_END = "\033[0m"             # Reset all styles (simpler than "\033[0;0m")
 PROJECT_ROOT = path.dirname(path.abspath(path.join(path.dirname(__file__))))
 DATASETS_DIR = 'datasets'
 DATASETS_ROOT = path.join(PROJECT_ROOT, DATASETS_DIR)
+MODELS_ROOT = path.realpath(path.join(PROJECT_ROOT, 'models'))
 
 """
 Training data generation defaults for images:
