@@ -10,6 +10,9 @@ import cvtools.contrast_filters as filters
 from color.palette_extractor import PaletteExtractor
 from cvtools import color_filters
 from logging_config import logger
+from profiler import profiler
+
+profile = profiler.profile
 
 class ProcessingPipeline():
     # Tunable pipeline parameters
@@ -181,7 +184,6 @@ class ProcessingPipeline():
         self.flat_colors = flat_colors
 
         return _
-
 
     def _run_final_blend(self, _):
         """Final mix between colored ASCII blocks and flat color blocks"""

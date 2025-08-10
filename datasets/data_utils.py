@@ -53,16 +53,14 @@ def get_class_counts(dataset, num_classes):
 
 
 def create_class_weights(class_counts, mu=0.001):
-    """ Calculates class weights based on the number of samples in each class,
-    and the total number of samples in the dataset. The class weights are later used
-    to balance the loss function during training. """
+
     class_counts = {item[0]: item[1] for item in class_counts}
     total = np.sum(list(class_counts.values()))
     labels = class_counts.keys()
     class_weights = dict()
 
     for label in labels:
-        if (class_counts[label] > 0):
+        if class_counts[label] > 0:
             score = math.log(mu * total / float(class_counts[label]))
         else:
             score = 0
@@ -70,46 +68,10 @@ def create_class_weights(class_counts, mu=0.001):
         class_weights[label] = score if score > 0 else 0
 
     # normalize the weights
-    # weight_sum = sum(class_weights)
-    # class_weights = [w / weight_sum for w in class_weights]
+    weight_sum = sum(class_weights)
+    class_weights = [w / weight_sum for w in class_weights]
 
     return list(class_weights)
-
-
-def _calculate_class_weights(class_counts):
-    # DEPRECATED?
-
-    # Calculate class frequencies
-    class_counts = torch.tensor(class_counts)
-    # total_count = class_counts.sum()
-    # class_freqs = class_counts / total_count
-    #
-    # # Calculate class imbalance ratio
-    # rarest_class_freq = class_freqs.min() + 0.0001
-    # most_common_class_freq = class_freqs.max()
-    # class_imbalance_ratio = rarest_class_freq / most_common_class_freq
-
-    # Calculate effective number of samples
-    # effective_num_samples = (1 - class_imbalance_ratio) / class_imbalance_ratio
-
-    # Calculate alpha
-    alpha = 0.99
-    # effective_num = (1 - np.power(alpha, class_counts)) / (1 - alpha)
-    effective_num = (1 - torch.pow(alpha, class_counts)) / (1 - alpha)
-
-    # Calculate mu
-    #mu = 1 / effective_num
-   # mu_normalized = mu / np.sum(mu)  # This is optional, based on your needs
-
-    #print(f"Class weights: Ideal value of mu: {mu.item():.2f}")
-
-    class_weights = 1 / effective_num
-    class_weights = class_weights / torch.sum(class_weights) * len(class_counts)  # Normalize weights
-
-    # Apply class weighting
-    # class_weights = 1 / torch.tensor([effective_num]) ** mu
-    return class_weights
-
 
 def write_dataset_class_counts(num_classes, dataset: AsciiDataset):
     """ Extracts class counts from a dataset and writes them to a CSV file, to either be analyzed, or to be used for

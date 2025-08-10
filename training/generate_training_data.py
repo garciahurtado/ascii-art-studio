@@ -62,13 +62,13 @@ char_width, char_height = charset.char_width, charset.char_height
 def process_image(filename, data_path, index, min_dims: Dimensions, max_dims: Dimensions, export_csv=True,
                   color_only=False,
                   double_inverted=True, return_labels=False):
-
+    num_samples = 0
     if os.path.isfile(filename):
         print(f'Processing {filename}...')
         in_img = cv.imread(filename)
 
         out_filename = f"{index:06d}"
-        num_samples = convert_image(in_img, out_filename, data_path, min_dims, max_dims, export_csv=export_csv,
+        num_samples += convert_image(in_img, out_filename, data_path, min_dims, max_dims, export_csv=export_csv,
                                     color_only=color_only,
                       return_labels=return_labels)
 
@@ -77,16 +77,13 @@ def process_image(filename, data_path, index, min_dims: Dimensions, max_dims: Di
             num_samples += convert_image(in_img, out_filename, data_path, min_dims, max_dims, export_csv=export_csv,
                           color_only=color_only, is_inverted=True, return_labels=return_labels)
 
-        return True
+        return num_samples
     else:
         raise FileNotFoundError(f'File {filename} does not exist')
 
 
 def convert_image(in_img, filename, data_path, min_dims, max_dims, export_csv=True, color_only=False, is_inverted=False,
                   return_labels=False):
-    # debug constants
-    print(f'OUT_IMG_DIR {OUT_IMG_DIR}...')
-    print(f'OUT_DATA_PATH: {data_path}')
     out_file_color = os.path.join(OUT_IMG_DIR, f'{filename}-color.png')
     out_file_contrast = os.path.join(OUT_IMG_DIR, f'{filename}-contrast.png')
     out_file_ascii = os.path.join(OUT_IMG_DIR, f'{filename}-ascii.png')
@@ -105,8 +102,12 @@ def convert_image(in_img, filename, data_path, min_dims, max_dims, export_csv=Tr
     cv.imwrite(out_file_color, final_img)
     print(f'> {out_file_color} created')
 
+    # Collect stats for histogram of per character uses
+    all_used_chars.extend(converter.used_chars)
+
     if color_only:
-        return
+        num_samples = len(converter.used_chars)
+        return num_samples
 
     # Save the high contrast image
     cv.imwrite(out_file_contrast, pipeline.contrast_img)
@@ -116,8 +117,6 @@ def convert_image(in_img, filename, data_path, min_dims, max_dims, export_csv=Tr
     cv.imwrite(out_file_ascii, pipeline.ascii)
     print(f'> {out_file_ascii} created')
 
-    # Collect stats for histogram of per character uses
-    all_used_chars.extend(converter.used_chars)
 
     if export_csv:
         csv_data = converter.get_csv_data()
@@ -131,12 +130,12 @@ def convert_image(in_img, filename, data_path, min_dims, max_dims, export_csv=Tr
     if return_labels:
         return converter.get_label_data()
     else:
-        num_samples = len(all_used_chars)
+        num_samples = len(converter.used_chars)
         return num_samples
 
 
 def create_training_data(min_dims: Dimensions, max_dims: Dimensions, export_csv=True, color_only=False,
-                         start_index=0, double_inverted=True, dataset_name=None):
+                         start_index=0, double_inverted=True, dataset_name=None, force=False):
     """
     Create training data for a dataset of images. Each image is processed in parallel using a configurable number of
     threads. Optionally, the images can be inverted before processing and the intermin images can be saved along with
@@ -153,7 +152,8 @@ def create_training_data(min_dims: Dimensions, max_dims: Dimensions, export_csv=
         raise ValueError(f'No .PNG images found in {IN_IMG_DIR}!!')
 
     # Don't use more threads than the number of images
-    num_threads = 16 if num_imgs > 16 else num_imgs
+    max_threads = 16
+    num_threads = min(num_imgs, max_threads)
 
     start_time = arrow.utcnow()
 
@@ -163,23 +163,25 @@ def create_training_data(min_dims: Dimensions, max_dims: Dimensions, export_csv=
     print(f'Creating training data for {num_imgs} images in {OUT_IMG_DIR}...')
 
     """ Make sure that the output directories exist and are empty before processing new data """
-    if not os.path.exists(out_data_dir):
-        os.makedirs(out_data_dir)
-    else:
-        for file in os.listdir(out_data_dir):
-            full_path = os.path.join(out_data_dir, file)
-            if os.path.isfile(full_path):
-                raise FileExistsError(
-                    f'{out_data_dir} is not empty! Please remove any files in this directory before processing new data.')
+    if export_csv:
+        if not os.path.exists(out_data_dir):
+            os.makedirs(out_data_dir)
+        else:
+            for file in os.listdir(out_data_dir):
+                full_path = os.path.join(out_data_dir, file)
+                if os.path.isfile(full_path):
+                    raise FileExistsError(
+                        f'{out_data_dir} is not empty! Please remove any files in this directory before processing new data.')
 
     if not os.path.exists(OUT_IMG_DIR):
         os.makedirs(OUT_IMG_DIR)
     else:
-        for file in os.listdir(OUT_IMG_DIR):
-            full_path = os.path.join(OUT_IMG_DIR, file)
-            if os.path.isfile(full_path) and file.endswith('.png'):
-                raise FileExistsError(
-                    f'Directory {OUT_IMG_DIR} is not empty! Please remove any .PNG files in this directory before processing new data.')
+        if not force:
+            for file in os.listdir(OUT_IMG_DIR):
+                full_path = os.path.join(OUT_IMG_DIR, file)
+                if os.path.isfile(full_path) and file.endswith('.png'):
+                    raise FileExistsError(
+                        f'Directory {OUT_IMG_DIR} is not empty! Please remove any .PNG files in this directory before processing new data.')
 
     # Create an image of the charset that we will be using for this dataset generation, so we can save it for reference
     # along with the training data
@@ -188,39 +190,40 @@ def create_training_data(min_dims: Dimensions, max_dims: Dimensions, export_csv=
     cv.imwrite(out_charset_table, index_table)
     print(f'ASCII index table: {out_charset_table} created')
 
+    all_args = []
+    all_kwargs = []
+
+    for index, file in enumerate(all_files):
+        in_img_path = os.path.join(IN_IMG_DIR, file)
+
+        if os.path.isdir(in_img_path):
+            continue  # Skip directories
+
+        _args = [
+            in_img_path,
+            out_data_dir,
+            start_index + index,
+            min_dims,
+            max_dims
+        ]
+        all_args.append(_args)
+
+        _kwargs = {
+            'export_csv': export_csv,
+            'color_only': color_only,
+            'double_inverted': double_inverted
+        }
+        all_kwargs.append(_kwargs)
+
     with Pool(num_threads) as p:
-        all_args = []
-        all_kwargs = []
-
-        for index, file in enumerate(all_files):
-            in_img_path = os.path.join(IN_IMG_DIR, file)
-
-            if os.path.isdir(in_img_path):
-                continue  # Skip directories
-
-            _args = [
-                in_img_path,
-                out_data_dir,
-                start_index + index,
-                min_dims,
-                max_dims
-            ]
-            all_args.append(_args)
-
-            _kwargs = {
-                'export_csv': export_csv,
-                'color_only': color_only,
-                'double_inverted': double_inverted
-            }
-            all_kwargs.append(_kwargs)
-
         return_values = starmap_with_kwargs(p, process_image, all_args, all_kwargs)
 
-        """ process_image returns an integer with the number of samples generated. starmap will return a list of those
-        results """
-        for return_value in return_values:
-            if return_value:
-                total_num_samples += return_value
+    """ process_image returns an integer with the number of samples generated. starmap will return a list of those
+    results """
+
+    for return_value in return_values:
+        if return_value:
+            total_num_samples += return_value
 
     end_time = arrow.utcnow()
     time_diff = end_time - start_time
@@ -228,13 +231,13 @@ def create_training_data(min_dims: Dimensions, max_dims: Dimensions, export_csv=
     print(
         f"*** DONE: created {total_num_samples} samples from {num_files_processed} images processed by {num_threads} threads in: {time_diff} ***")
 
-    """ Now that the dataset is complete, create the metadata file """
-    dataset = AsciiDataset(dataset_name)
+    """ Now that the dataset export is complete, create the metadata file """
+    if export_csv:
+        dataset = AsciiDataset(dataset_name)
+        num_samples = total_num_samples
+        new_version = save_metadata(dataset, num_files_processed, num_samples)
 
-    num_samples = total_num_samples
-    new_version = save_metadata(dataset, num_files_processed, num_samples)
-
-    printc(f"Saved dataset with version {new_version} to {out_data_dir}", INK_BLUE)
+        printc(f"Saved new dataset v{new_version} to {out_data_dir}", INK_BLUE)
 
 
 def save_metadata(dataset: AsciiDataset, num_files_processed, num_samples):
@@ -565,7 +568,12 @@ if __name__ == "__main__":
         default='processed/train')
     parser.add_argument(
         '--augment',
-        help='Augment the dataset with additional images, shifted horizontally and vertically from the original',
+        help='Augment the dataset by creating additional images, shifted horizontally and vertically from the original',
+        action='store_true',
+        default=False)
+    parser.add_argument(
+        '--force',
+        help='Force overwrite of existing files without warning',
         action='store_true',
         default=False)
 
@@ -580,6 +588,7 @@ if __name__ == "__main__":
     split_ratio = float(args.split_ratio)
     count_labels = args.count_labels
     subdir = args.subdir
+    force = args.force
 
     if args.count_labels:
         dataset_class = data_utils.get_dataset_class(dataset_name)
@@ -618,6 +627,7 @@ if __name__ == "__main__":
 
         exit(0)
     else:
-        create_training_data(min_dims, max_dims, export_csv=(not img_only), color_only=color_only,
-                             start_index=int(start_index), double_inverted=double_inverted, dataset_name=dataset_name)
+        create_training_data(min_dims, max_dims, export_csv=(not (img_only or color_only)), color_only=color_only,
+                             start_index=int(start_index), double_inverted=double_inverted, dataset_name=dataset_name,
+                             force=force)
         exit(0)

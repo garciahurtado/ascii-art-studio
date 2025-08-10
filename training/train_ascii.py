@@ -121,7 +121,7 @@ def train_model(num_labels, dataset_class, charset):
         trainset,
         batch_size=train_params['batch_size'],
         shuffle=True,
-        num_workers=6,
+        num_workers=4,
         prefetch_factor=1,
         drop_last=True,
         worker_init_fn=data_utils.seed_init_fn)
@@ -130,7 +130,7 @@ def train_model(num_labels, dataset_class, charset):
         testset,
         batch_size=train_params['test_batch_size'],
         shuffle=True,
-        num_workers=4,
+        num_workers=2,
         prefetch_factor=1,
         drop_last=True,
         worker_init_fn=data_utils.seed_init_fn)
@@ -181,8 +181,8 @@ def train(class_counts, trainloader, testloader, train_params, dataset_name, cha
     model.apply(weights_init_uniform_rule)
 
     # Generate class weights automatically
-    class_weights = data_utils.create_class_weights(class_counts, mu=0.002)
-    class_weights = torch.tensor(class_weights, dtype=torch.float)
+    class_weights = data_utils.create_class_weights(class_counts)
+    class_weights = torch.tensor(class_weights, dtype=torch.float32)
     class_weights = class_weights.to(device)
 
     criterion = nn.CrossEntropyLoss(weight=class_weights)

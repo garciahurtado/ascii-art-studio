@@ -1,5 +1,5 @@
-cmdline: python generate_training_data.py ['--invert']
-created: 2025-08-08_18:27:56
+cmdline: python generate_training_data.py ['--color-only', '--force']
+created: 2025-08-10_07:32:49
 description: ASCII art dataset generated from c64.png character set
 features:
 - description: 8x8 grayscale character patches
@@ -17,7 +17,7 @@ num_classes: 254
 source: https://github.com/garciahurtad/ascii_movie_pytorch
 statistics:
   class_distribution: n/a
-  num_samples: 2034299
-  num_source_files: 515
+  num_samples: 15114
+  num_source_files: 6
 train_split: n/a
-version: 0.0.11
+version: 0.0.31

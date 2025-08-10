@@ -102,8 +102,6 @@ class FeatureAsciiConverter(ShiftingAsciiConverter):
         width, height = input_image.shape[1], input_image.shape[0]
         block_cols, block_rows = math.floor(width / self.char_width), math.floor(height / self.char_height)
 
-        print(f" cols: {block_cols} rows: {block_rows}")
-
         self.used_chars = []  # Keep track of the unique characters used in this rendering, for analytics
         self.match_char_map = np.full((block_rows, block_cols), None, dtype=object)
         self.dist_eucl_map = np.full((block_rows, block_cols), None, dtype=object)
@@ -113,7 +111,6 @@ class FeatureAsciiConverter(ShiftingAsciiConverter):
         self.candidate_chars = [[[] for i in range(block_cols)] for j in range(block_rows)]
         self.img_block_map = np.full((block_rows, block_cols), None, dtype=object)
         self.mask_map = np.full((block_rows, block_cols), None, dtype=object)
-
 
         output_image = input_image.copy()
 
