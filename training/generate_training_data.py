@@ -52,7 +52,7 @@ WIDTH, HEIGHT = 384, 424  # For images (joker)
 
 all_used_chars = [] # For stats
 
-charset_name = 'c64.png'
+charset_name = 'c64-lean.png'
 charset = Charset()
 charset.load(charset_name)
 char_width, char_height = charset.char_width, charset.char_height
@@ -117,15 +117,12 @@ def convert_image(in_img, filename, data_path, min_dims, max_dims, export_csv=Tr
     cv.imwrite(out_file_ascii, pipeline.ascii)
     print(f'> {out_file_ascii} created')
 
-
     if export_csv:
         csv_data = converter.get_csv_data()
         data_file = open(out_file_data, "w")
         data_file.write(csv_data)
         data_file.close()
         print(f'{out_file_data} created')
-
-        return csv_data
 
     if return_labels:
         return converter.get_label_data()
@@ -186,7 +183,7 @@ def create_training_data(min_dims: Dimensions, max_dims: Dimensions, export_csv=
     # Create an image of the charset that we will be using for this dataset generation, so we can save it for reference
     # along with the training data
     out_charset_table = OUT_IMG_DIR + f'{dataset_name}-ascii-table.png'
-    index_table = Charset.make_charset_index_table(charset)
+    index_table = charset.make_charset_index_table()
     cv.imwrite(out_charset_table, index_table)
     print(f'ASCII index table: {out_charset_table} created')
 
@@ -235,12 +232,12 @@ def create_training_data(min_dims: Dimensions, max_dims: Dimensions, export_csv=
     if export_csv:
         dataset = AsciiDataset(dataset_name)
         num_samples = total_num_samples
-        new_version = save_metadata(dataset, num_files_processed, num_samples)
+        new_version = save_metadata(dataset, num_files_processed, num_samples, len(charset.chars))
 
         printc(f"Saved new dataset v{new_version} to {out_data_dir}", INK_BLUE)
 
 
-def save_metadata(dataset: AsciiDataset, num_files_processed, num_samples):
+def save_metadata(dataset: AsciiDataset, num_files_processed, num_samples, num_labels):
     if not os.path.isfile(dataset.metadata_path):
         # Create the metadata file if it doesn't exist
         new_file = open(dataset.metadata_path, 'w')
@@ -287,6 +284,7 @@ def save_metadata(dataset: AsciiDataset, num_files_processed, num_samples):
         "statistics": {
             "num_source_files": num_files_processed,
             "num_samples": num_samples,
+            "num_labels": len(charset.chars),
             "class_distribution": "n/a"
         },
         "cmdline": f"python {this_script} {sys_args}"

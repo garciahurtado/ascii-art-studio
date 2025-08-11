@@ -1,0 +1,23 @@
+cmdline: python generate_training_data.py ['--dataset', 'ascii_c64_lean']
+created: 2025-08-10_20:37:52
+description: ASCII art dataset generated from c64-lean.png character set
+features:
+- description: 8x8 grayscale character patches
+  dtype: float32
+  name: image
+  shape:
+  - 8
+  - 8
+- description: Character class index
+  dtype: int64
+  name: label
+license: MIT
+name: ascii_c64_lean
+source: https://github.com/garciahurtad/ascii_movie_pytorch
+statistics:
+  class_distribution: n/a
+  num_labels: 247
+  num_samples: 15864
+  num_source_files: 6
+train_split: n/a
+version: 0.0.6

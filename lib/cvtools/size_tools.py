@@ -244,17 +244,7 @@ def is_empty(img):
     white_pixels = np.count_nonzero(img)
 
     if white_pixels == 0:
-        return True
-    else:
-        return False
-
-
-def is_almost_empty(img, threshold):
-    """ Returns true as long as the image has no more than 'threshold' black pixels"""
-
-    white_pixels = np.count_nonzero(img)
-
-    if white_pixels <= threshold:
+        # No white pixels, they must be all black
         return True
     else:
         return False
@@ -269,6 +259,15 @@ def is_full(img):
     else:
         return False
 
+def is_almost_empty(img, threshold):
+    """ Returns true as long as the image has no more than 'threshold' black pixels"""
+
+    white_pixels = np.count_nonzero(img)
+
+    if white_pixels <= threshold:
+        return True
+    else:
+        return False
 
 def is_almost_full(img, threshold):
     """ Returns true as long as the image has no more than 'threshold' white pixels"""

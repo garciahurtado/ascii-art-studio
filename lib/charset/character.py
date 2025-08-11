@@ -6,11 +6,12 @@ from cvtools import size_tools as tools
 
 class Character:
     """
-    Represents a 2 bit character (1s and 0s) derived from an ASCII/UTF-8 character
+    Represents a 2 bit character (1s and 0s) derived from an ASCII or UTF-8 character
     """
 
     def __init__(self, img, index=None, code=None):
         self.img = img
+        self.empty_threshold = 3
 
         # Save downsampled pixel grayscale versions of the character img, for use in candidate selection
         self.grayscale = {}
@@ -39,22 +40,10 @@ class Character:
         self.img_tuple = tuple(img.ravel().tolist())
 
     def is_empty(self):
-        # Empty: all black pixels
-        non_zero_pixels = np.count_nonzero(self.img)
-
-        if non_zero_pixels == 0:
-            return True
-        else:
-            return False
+        return tools.is_empty(self.img)
 
     def is_full(self):
-        # Full: all white pixels
-        non_zero_pixels = np.count_nonzero(self.img)
-
-        if non_zero_pixels == self.width * self.height:
-            return True
-        else:
-            return False
+        return tools.is_full(self.img)
 
     def make_low_res(self, size):
         new_img = self.img

@@ -18,16 +18,19 @@ class Charset:
     The charsets to be loaded must include all characters in a single black and white PNG image.
     Each character should be 8x8 pixels. The number of rows and columns is not important.
     """
-
-    CHARSETS_DIR = os.path.dirname(__file__) + "/res/charsets/"
+    this_dir = os.path.dirname(__file__)
+    CHARSETS_DIR = os.path.join(this_dir, "res", "charsets")
 
     def __init__(self, char_width=8, char_height=8):
         self.char_width = char_width
         self.char_height = char_height
         self.chars = []
+        self.num_chars = 0
+        self.skip_chars = []
         self.pixel_histogram = None
         self.charset_img = None
         self.filename = None
+        self.name = None
         self.hex_codes = None
         self.inverted_included = False
 
@@ -54,7 +57,8 @@ class Charset:
         If specified, also create inverted versions of all the loaded characters.
         """
         self.filename = filename
-        filename = self.CHARSETS_DIR + filename
+        self.name = self.filename.replace(".png", "")
+        filename = os.path.join(self.CHARSETS_DIR, filename)
 
         if not os.path.exists(filename):
             raise FileNotFoundError(f'Unable to load charset. File "{filename}" does not exist')
@@ -76,50 +80,48 @@ class Charset:
             for x in range(0, charset_width, self.char_width):
                 img = charset[y:y + self.char_height, x:x + self.char_width]
                 idx = len(self.chars)
+                if idx >= self.num_chars:
+                    break
+
                 hex_code = self.hex_codes[idx] if self.hex_codes and idx < len(self.hex_codes) else None
                 new_char = Character(img, idx, hex_code)
 
-                # First character made of all white pixels, keep track of it, so we dont end up with duplicates
-                if new_char.is_full():
-                    if self.full_char.index is None:
-                        self.full_char.index = idx
-                        self.full_char.code = new_char.code
-                        self.chars.append(new_char)
-                elif new_char.is_empty(): # First character made of all black pixels, keep track of it
-                    if self.empty_char.index is None:
-                        self.empty_char.index = idx
-                        self.empty_char.code = new_char.code
-                        self.chars.append(new_char)
+                # Any character that is empty or full should be ignored, since they already exist in the charset object
+                if new_char.is_full() and not self.full_char.index:
+                    printc(f"Found full char with idx:{new_char.index}")
+
+                elif new_char.is_empty() and not self.empty_char.index:  # First character made of all black pixels, keep track of it
+                    printc(f"Found empty char with idx:{new_char.index}")
                 else:
                     self.chars.append(new_char)
 
         if invert:
-            inverted_char = None
             inv_chars = []
-            idx = 0
 
             for character in self.chars:
-                idx = len(self.chars) + len(inv_chars)
-                inverted_char = Character(cv.bitwise_not(character.img), idx)
+                idx_inv = idx + len(inv_chars)
+                inverted_char = Character(cv.bitwise_not(character.img), idx_inv)
                 inverted_char.is_inverted = True
 
-                # First character made of all black pixels, keep track of it
-                if inverted_char.is_full():
-                    if self.full_char.index is None:
-                        self.full_char.index = idx
-                        inv_chars.append(inverted_char)
-                elif inverted_char.is_empty():
-                    if self.empty_char.index is None:
-                        self.empty_char.index = idx
-                        inv_chars.append(inverted_char)
+                # ignore all empty and full characters, so we dont end up with duplicates. We will add them later
+                if inverted_char.is_full() or inverted_char.is_empty():
+                    continue
                 else:
                     inv_chars.append(inverted_char)
 
             self.chars.extend(inv_chars)
 
+        # we dont want to include the full and empty characters in the character count
+        self.num_chars = len(self.chars)
 
-        print(f"{len(self.chars)} total characters loaded")
+        # Add the full and empty characters
+        self.full_char.index = len(self.chars)
+        self.chars.append(self.full_char)
 
+        self.empty_char.index = len(self.chars)
+        self.chars.append(self.empty_char)
+
+        print(f"{self.num_chars} total characters loaded from charset, +2 more for full and empty")
 
         return
 
@@ -129,6 +131,10 @@ class Charset:
         if os.path.exists(json_file):
             with open(json_file, 'r') as file:
                 all_json = json.load(file)
+                self.num_chars = all_json["num_chars"]
+                self.char_width = all_json["char_width"]
+                self.char_height = all_json["char_height"]
+
                 if "inverted_included" in all_json.keys():
                     self.inverted_included = all_json["inverted_included"]
 
@@ -136,8 +142,31 @@ class Charset:
                     self.hex_codes = all_json["hex_codes"]
                     if self.inverted_included:
                         self.hex_codes = self.hex_codes + self.hex_codes
+
+                if "skip_chars" in all_json.keys():
+                    self.skip_chars = all_json["skip_chars"]
         else:
             printc(f"!! No metadata file {json_file} found !!")
+
+    def save_metadata(self):
+        # Remove .png from the img filename and add .json
+        json_file = os.path.join(self.CHARSETS_DIR, self.name + ".json")
+
+        with open(json_file, 'w') as file:
+            conf = {
+                "name": self.name,
+                "char_height": self.char_height,
+                "char_width": self.char_width,
+                "num_chars": len(self.chars),
+                "inverted_included": self.inverted_included
+            }
+            if self.hex_codes:
+                conf["hex_codes"] = self.hex_codes
+            if self.skip_chars:
+                conf["skip_chars"] = self.skip_chars
+
+            json.dump(conf, file, indent=4)
+            print(f"Saved charset metadata to {json_file}")
 
     def print_unicode_chars(self, show_hex=False):
         if not self.hex_codes:
@@ -168,56 +197,90 @@ class Charset:
 
         print(f"{total} characters printed")
 
-    def write(self, filename):
+    def write(self, filename, skip_chars=None):
         """
         Write this charset to disk as a black and white PNG, trying to arrange the total number of characters
         in an even number of rows and columns
         """
-        chars = self.chars.copy()
+        orig_chars = self.chars.copy()
+        print(f"Number of original characters: {len(orig_chars)}")
+        num_skipped = 0
 
-        num_chars = len(chars)
-        num_cols = math.floor(math.sqrt(num_chars))
-        num_rows = num_cols
-        extra_chars = num_chars - (num_cols * num_rows)
-        num_pad_chars = 0
+        if skip_chars:
+            new_chars = []
 
-        if extra_chars > 0:
-            print(f"Extra chars: {extra_chars}")
-            # Can't fit in a square, add one or two more rows
-            num_rows += math.ceil(extra_chars / num_cols)
-            num_pad_chars = num_cols - (extra_chars % num_cols)
+            # Remove the list of characters to skip from the original
+            for char in orig_chars:
+                empty_or_full = char.is_empty() or char.is_full()
+                if (int(char.index) not in skip_chars) and not empty_or_full:
+                    new_chars.append(char)
+                else:
+                    num_skipped = num_skipped + 1
+        else:
+            new_chars = orig_chars
+
+        self.chars = new_chars
+
+        num_chars = len(new_chars)
+        write_chars = new_chars.copy()
+        num_rows = 16
+        num_cols = math.ceil(num_chars / num_rows)
+        num_pad_chars = num_cols - (num_chars % num_cols)
 
         rows = []
 
-        # TODO: Needs to be updated, only does single column right now
         for i in range(0, num_rows):
 
             # We may need to pad the last row if it's a jagged array
             if (i == num_rows - 1) and (num_pad_chars > 0):
-                print(f"Num pad chars: {num_pad_chars}")
                 empty_char = self.empty_char
                 padding = [empty_char for i in range(num_pad_chars)]
-                chars.extend(padding)
+                write_chars.extend(padding)
 
             all_row_chars = []
 
             for j in range(0, num_cols):
                 idx = (i*num_cols) + j
-                all_row_chars.append(chars[idx].img)
+                all_row_chars.append(write_chars[idx].img)
 
             rows.append(cv.hconcat(all_row_chars))
 
         charmap = cv.vconcat(rows)
-        cv.imwrite(self.CHARSETS_DIR + filename, charmap)
+        final_path = os.path.join(self.CHARSETS_DIR, filename)
+        cv.imwrite(final_path, charmap)
 
-    def make_charset_index_table(charset):
+        if not num_skipped: num_skipped = "none"
+        print(f"Charset image with {num_chars} chars ({num_skipped} skipped) written to: {final_path}")
+
+    def write_without_skip_chars(self):
+        """
+        If the metadata file has a list of skip_chars, remove them from the charset before packing and writing to disk
+        """
+        # remove the extension from the filename
+
+        if self.skip_chars:
+            old_skip_chars = self.skip_chars
+
+            # Save new charmap image and metadata file
+            self.name = self.name + "-lean"
+            filename = self.name
+            self.write(filename + ".png", self.skip_chars)
+
+            # We've already saved the new charset image without skip_chars, so remove them from the metadata
+            self.skip_chars = False
+            self.save_metadata()
+            self.skip_chars = old_skip_chars
+        else:
+            raise Exception("No skip_chars present in metadata json")
+
+    def make_charset_index_table(self):
         """Generate an image showing each character and their corresponding index in the charset they were loaded from.
         This is needed for model training, as those indexes will become the labels"""
-        char_width, char_height = charset.char_width, charset.char_height
-        size = (len(charset) * char_height, char_width * 5)
+        char_width, char_height = self.char_width, self.char_height
+        size = (len(self) * char_height, char_width * 5)
         img = np.zeros(size, dtype=np.uint8)
 
-        for i, character in enumerate(charset):
+        for i, character in enumerate(self.chars):
             img[i * char_height: (i + 1) * char_height, 0:char_width] = character.img
             color = (255, 255, 255)
             cv.putText(img, str(character.index), (char_width + 3, ((i + 1) * char_height) - 1), cv.FONT_HERSHEY_PLAIN,

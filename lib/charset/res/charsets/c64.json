@@ -3,5 +3,6 @@
     "char_width": 8,
     "char_height": 8,
     "inverted_included": true,
-    "num_chars": 512
+    "num_chars": 256,
+    "skip_chars": [69, 114, 194, 239]
 }

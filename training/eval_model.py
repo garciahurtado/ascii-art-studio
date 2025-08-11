@@ -1,3 +1,4 @@
+import argparse
 import os
 
 import numpy as np
@@ -19,7 +20,7 @@ import pytorch.model_manager as models
 
 
 def eval_model(dataset_class, dataset_name, model_filename, num_classes, charset):
-    batch_size = 40000
+    batch_size = 20000
     device = data.get_device()
 
     model = models.load_model(dataset_name, model_filename, num_labels=num_classes)
@@ -27,7 +28,7 @@ def eval_model(dataset_class, dataset_name, model_filename, num_classes, charset
     model.eval()  # put the model in inference mode
 
     # Load the test dataset
-    dataset = data.get_dataset(train=False, dataset_class=dataset_class)
+    dataset = data.get_dataset(dataset_class=dataset_class, subdir='processed/test')
     dataloader = torch.utils.data.DataLoader(
         dataset,
         batch_size=batch_size,
@@ -79,16 +80,20 @@ def eval_model(dataset_class, dataset_name, model_filename, num_classes, charset
     filename = os.path.join(data_root, f'{model_filename}-class-accuracy.txt')
     print(f"Saving class accuracy to {filename}....")
 
-
     class_accy = {}
     with open(filename, "w") as file:
-        for class_name, class_report in report.items():
-            if str.isdigit(class_name):
-                class_accy[class_name] = class_report['precision']
+        for i in range(num_classes):
+            class_name = str(i)
+            if class_name in report.keys():
+                class_report = report[class_name]
+                class_accy[i] = class_report['precision']
                 precision = f"{class_report['precision']*100:.2f}"
-                file.write(f"{class_name},{precision}\n")
-                print(f"Class {class_name}: Accuracy = {precision}")
+            else:
+                class_accy[i] = None
+                precision = None
 
+            file.write(f"{class_name},{precision}\n")
+            print(f"Class {class_name}: Accuracy = {precision or 'N/A'}")
 
     accuracy = metric.compute() * 100
     end = time.time()
@@ -118,11 +123,23 @@ def make_charset_accuracy_map(charset_image, accy_report, model_name):
     num_rows = 16
     num_cols = 16
 
+    # Get the actual dimensions of the charset image
+    img_height, img_width = charset_image.shape[:2]
+
+    # Calculate actual block dimensions based on image size
+    block_width = img_width // num_cols
+    block_height = img_height // num_rows
+
     # Iterate over the class accuracies
-    for class_name, accy in accy_report.items():
+    for class_idx, accy in accy_report.items():
         # Calculate the row and column of the character block
-        row = int(class_name) // num_rows
-        col = int(class_name) % num_cols
+        row = int(class_idx) // num_cols  # Use integer division by num_cols for row
+        col = int(class_idx) % num_cols  # Use modulo by num_cols for column
+
+        print(f"Class {class_idx}: row={row}, col={col}")
+
+        if accy is None:
+            continue
 
         # Calculate the coordinates of the character block
         x1 = col * block_width
@@ -130,13 +147,19 @@ def make_charset_accuracy_map(charset_image, accy_report, model_name):
         x2 = x1 + block_width
         y2 = y1 + block_height
 
-        # Create a semitransparent overlay block
-        overlay_block = np.zeros((block_height, block_width, 3), dtype=np.uint8)
-        overlay_block[:] = color_accuracy(accy)
-        overlay_block = cv.addWeighted(overlay_block, 0.5, charset_image[y1:y2, x1:x2], 0.5, 0, )
+        # Ensure we don't go out of bounds
+        x2 = min(x2, img_width)
+        y2 = min(y2, img_height)
 
-        # Apply the overlay block to the overlay image
-        charset_image[y1:y2, x1:x2] = overlay_block
+        # Create a semitransparent overlay block
+        overlay_block = np.zeros((y2 - y1, x2 - x1, 3), dtype=np.uint8)
+        overlay_block[:] = color_accuracy(accy)
+
+        # Apply the overlay to the character block
+        charset_image[y1:y2, x1:x2] = cv.addWeighted(
+            overlay_block, 0.5,
+            charset_image[y1:y2, x1:x2], 0.5, 0
+        )
 
     # Save the overlay image
     accy_image_path = f'./resources/eval/charset_accuracy_map-{model_name}.png'
@@ -214,12 +237,21 @@ def visTensor(tensor, ch=0, allkernels=False, nrow=8, padding=1):
 if __name__ == "__main__":
     dataset_class = AsciiC64Dataset
     dataset_name = 'ascii_c64'
-    model_filename = 'ascii_c64-Mar17_21-33-46'
+    model_filename = 'ascii_c64'
     num_classes = 254
     char_width = 8
     char_height = 8
     charset = Charset(char_width, char_height)
     charset_name = 'c64.png'
-    charset.load(charset_name, invert=False)
+    charset.load(charset_name)
 
-    eval_model(dataset_class, dataset_name, model_filename, num_classes, charset)
+    parser = argparse.ArgumentParser(description='Evaluate a model')
+    parser.add_argument('--write-charset', action='store_true',
+                        help='Write the derived charset, except for skipped characters')
+    args = parser.parse_args()
+
+    if args.write_charset:
+        charset.write_without_skip_chars()
+        exit(1)
+    else:
+        eval_model(dataset_class, dataset_name, model_filename, num_classes, charset)

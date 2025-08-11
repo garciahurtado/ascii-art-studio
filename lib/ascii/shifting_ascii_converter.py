@@ -40,7 +40,6 @@ class ShiftingAsciiConverter(AsciiConverter):
         if(img_chr.is_full()):
             return [self.charset.full_char]
         elif(img_chr.is_empty()):
-            print("EMPTY!")
             return [self.charset.empty_char]
 
         prev_diff = size * size + 1
