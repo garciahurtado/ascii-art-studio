@@ -15,6 +15,7 @@ import mlflow as ml
 from charset import Charset
 from const import INK_GREEN, INK_BLUE
 from datasets.ascii_c64.ascii_c64_dataset import AsciiC64Dataset
+from datasets.ascii_c64_lean.ascii_c64_lean_dataset import AsciiC64LeanDataset
 from debugger import printc
 from net.ascii_c64_network import AsciiC64Network
 from performance_monitor import PerformanceMonitor
@@ -400,8 +401,11 @@ if __name__ == "__main__":
     cur_dir = os.path.dirname(os.path.abspath(__file__))
     root_dir = os.path.join(cur_dir, "../")
 
-    dataset_class = AsciiC64Dataset
-    charset_name = 'c64.png'
+    # dataset_class = AsciiC64Dataset
+    # charset_name = 'c64.png'
+
+    dataset_class = AsciiC64LeanDataset
+    charset_name = 'c64-lean.png'
 
     # ----------------------------------------------------
     charset = Charset()

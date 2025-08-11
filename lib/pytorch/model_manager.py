@@ -73,7 +73,7 @@ def make_model_directory(model_name: str, dataset: str, base_dir: str = None) ->
         printc(f"ERROR: model directory already exists: {full_dir}")
         exit(1)
 
-    os.mkdir(full_dir)
+    os.makedirs(full_dir)
     print(f"Created model directory: {full_dir}")
 
     return full_dir
