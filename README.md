@@ -4,12 +4,11 @@ A powerful Python application that converts images and videos into ASCII art usi
 
 ### Sample Images
 
-Tron                                   |  ASCII
-:-------------------------------------:|:-------------------------:
-![](web/static/img/examples/tron.png)  |  ![](web/static/img/examples/tron_ascii.png)
+| <img src="web/static/img/examples/tron.png" width="384" height="384"/> | <img src="web/static/img/examples/tron.png" width="384" height="384"/>  |
+| --- | --- |
 
-<img src="web/static/img/examples/tron.png" width="384" height="384"/>
-<img src="web/static/img/examples/tron_ascii.png" width="384" height="384"/>
+
+
 <br>
 <img src="web/static/img/examples/joker.png" width="384" height="424"/>
 <img src="web/static/img/examples/joker_ascii.png" width="384" height="424"/>
