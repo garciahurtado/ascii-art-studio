@@ -32,6 +32,8 @@ A very fast and "accurate" ASCII art conversion library written in Python. The c
 
 Training datasets and trained models were excluded from the repo due to file size, but all the pieces needed to generate training data and train a model with an arbitrary character set are included. You may need to tweak the network architecture in order to better fit your dataset.
 
+This project is the spiritual successor to [Oldskoolator](https://github.com/garciahurtado/oldskoolator), a desktop Javascript app that runs on the JVM. 
+
 
 ## Installation
 
