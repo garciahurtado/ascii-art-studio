@@ -1,9 +1,15 @@
-# ASCII Movie PyTorch
+# ASCII Art Studio
 
 A powerful Python application that converts images and videos into ASCII art using PyTorch. This project features both a desktop application and a web interface for generating ASCII art from various media sources.
 
 ![ASCII Art Example](web/static/images/ascii_art_example.png)
 *Example of ASCII art generated from an image*
+
+### Screenshots
+
+[<img src="web/static/examples/web_player.png" width="300" style="margin: 10px;"/>](web/static/examples/web_player.png)
+[<img src="web/static/examples/web_converter.png" width="300" style="margin: 10px;"/>](web/static/examples/web_converter.png)
+*Click on any image to view full size*
 
 ## Features
 
@@ -96,16 +102,3 @@ python desktop_player.py your_video.mp4
 python console_player.py path/to/image.jpg
 ```
 
-## Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request.
-
-## License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## Acknowledgments
-
-- Inspired by classic ASCII art and retro computing
-- Uses various open-source libraries and character sets
-- Built with ❤️ using Python and PyTorch
