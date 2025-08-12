@@ -1,3 +1,1 @@
-- Title glitchy images:
-    - 8 different shifted copies of rendered text
-    - Converted to ASCII using 29 cols x 4 rows using C64 character set
+v0.0.1
