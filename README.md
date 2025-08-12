@@ -4,8 +4,15 @@ A powerful Python application that converts images and videos into ASCII art usi
 
 ### Sample Images
 
-![Wind Waker](web/static/img/examples/wind_waker_ascii.png)
-![Tron Poster](web/static/img/examples/tron_ascii.png)
+<img src="web/static/img/examples/tron.png" width="384" height="384"/>
+<img src="web/static/img/examples/tron_ascii.png" width="384" height="384"/>
+<br>
+<img src="web/static/img/examples/joker.png" width="384" height="424"/>
+<img src="web/static/img/examples/joker_ascii.png" width="384" height="424"/>
+<br>
+<img src="web/static/img/examples/wind_waker.png" width="384" height="384"/>
+<img src="web/static/img/examples/wind_waker_ascii.png" width="384" height="384"/>
+<br>
 
 ### Screenshots
 
