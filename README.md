@@ -2,8 +2,8 @@
 
 A powerful Python application that converts images and videos into ASCII art using PyTorch. This project features both a desktop application and a web interface for generating ASCII art from various media sources.
 
-![ASCII Art Example](web/static/images/ascii_art_example.png)
-*Example of ASCII art generated from an image*
+![Wind Waker](web/static/img/examples/wind_waker_ascii.png)
+![Tron Poster](web/static/img/examples/tron_ascii.png)
 
 ### Screenshots
 
