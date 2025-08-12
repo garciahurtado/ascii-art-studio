@@ -7,8 +7,8 @@ A powerful Python application that converts images and videos into ASCII art usi
 
 ### Screenshots
 
-[<img src="web/static/examples/web_player.png" width="300" style="margin: 10px;"/>](web/static/examples/web_player.png)
-[<img src="web/static/examples/web_converter.png" width="300" style="margin: 10px;"/>](web/static/examples/web_converter.png)
+[<img src="web/static/img/examples/web_player.png" width="300" style="margin: 10px;"/>](web/static/img/examples/web_player.png)
+[<img src="web/static/img/examples/web_converter.png" width="300" style="margin: 10px;"/>](web/static/img/examples/web_converter.png)
 *Click on any image to view full size*
 
 ## Features
