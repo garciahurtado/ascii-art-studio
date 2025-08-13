@@ -158,7 +158,7 @@ def train(class_counts, trainloader, testloader, train_params, dataset_name, cha
     model.to(device)
 
     # Alongside the model weights, we also save the current version of the model source code
-    model_dir = models.make_model_directory(model_family, dataset_name)
+    model_dir = models.make_model_dir(dataset_name)
     model_filename = os.path.join(model_dir, f"{dataset_name}.pt")
 
     models.save_model_source(source_class_file, dataset_name, model_dir)
@@ -308,7 +308,7 @@ def train(class_counts, trainloader, testloader, train_params, dataset_name, cha
     # End of training - save final model
     printc('================= TRAINING FINISHED =================', INK_GREEN)
 
-    full_model_name = f"{model_family}-{dataset_name}"
+    full_model_name = dataset_name
 
     # Save the final model weights to disk
     final_model_path = os.path.join(model_dir, f"{full_model_name}.pt")

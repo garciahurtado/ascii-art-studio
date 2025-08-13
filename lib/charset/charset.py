@@ -21,7 +21,7 @@ class Charset:
     this_dir = os.path.dirname(__file__)
     CHARSETS_DIR = os.path.join(this_dir, "res", "charsets")
 
-    def __init__(self, char_width=8, char_height=8):
+    def __init__(self, char_width=8, char_height=8, name=None):
         self.char_width = char_width
         self.char_height = char_height
         self.chars = []
@@ -30,7 +30,7 @@ class Charset:
         self.pixel_histogram = None
         self.charset_img = None
         self.filename = None
-        self.name = None
+        self.name = name
         self.hex_codes = None
         self.inverted_included = False
 
@@ -87,13 +87,26 @@ class Charset:
                 new_char = Character(img, idx, hex_code)
 
                 # Any character that is empty or full should be ignored, since they already exist in the charset object
-                if new_char.is_full() and not self.full_char.index:
-                    printc(f"Found full char with idx:{new_char.index}")
+                if new_char.is_full():
+                    if not self.full_char.index:
+                        printc(f"Found full char with idx:{new_char.index}")
+                        self.full_char.index = new_char.index
+                        self.chars.append(new_char)
 
-                elif new_char.is_empty() and not self.empty_char.index:  # First character made of all black pixels, keep track of it
-                    printc(f"Found empty char with idx:{new_char.index}")
-                else:
-                    self.chars.append(new_char)
+                    # Ignore it and read the next character
+                    continue
+
+                if new_char.is_empty():
+                    if not self.empty_char.index:
+                        printc(f"Found empty char with idx:{new_char.index}")
+                        self.empty_char.index = new_char.index
+                        self.chars.append(new_char)
+
+                    # Ignore it and read the next character
+                    continue
+
+                # Its a normal character
+                self.chars.append(new_char)
 
         if invert:
             inv_chars = []
@@ -103,25 +116,56 @@ class Charset:
                 inverted_char = Character(cv.bitwise_not(character.img), idx_inv)
                 inverted_char.is_inverted = True
 
-                # ignore all empty and full characters, so we dont end up with duplicates. We will add them later
-                if inverted_char.is_full() or inverted_char.is_empty():
+                # Any character that is empty or full should be ignored, since they already exist in the charset object
+                if inverted_char.is_full():
+                    if not self.full_char.index:
+                        printc(f"Found full char with idx:{inverted_char.index}")
+                        self.full_char.index = inverted_char.index
+                        self.chars.append(inverted_char)
+                        continue
+
+                    # Ignore it and read the next character
                     continue
-                else:
-                    inv_chars.append(inverted_char)
+
+                if inverted_char.is_empty():
+                    if not self.empty_char.index:
+                        printc(f"Found empty char with idx:{inverted_char.index}")
+                        self.empty_char.index = inverted_char.index
+                        inv_chars.append(inverted_char)
+                        continue
+
+                    # Ignore it, since it already exists
+                    continue
+
+                inv_chars.append(inverted_char)
 
             self.chars.extend(inv_chars)
 
         # we dont want to include the full and empty characters in the character count
-        self.num_chars = len(self.chars)
+        # self.num_chars = len(self.chars)
 
-        # Add the full and empty characters
-        self.full_char.index = len(self.chars)
-        self.chars.append(self.full_char)
+        # self.full_char.index = len(self.chars)
+        # self.chars.append(self.full_char)
+        #
+        # self.empty_char.index = len(self.chars)
+        # self.chars.append(self.empty_char)
 
-        self.empty_char.index = len(self.chars)
-        self.chars.append(self.empty_char)
+        msg = ""
 
-        print(f"{self.num_chars} total characters loaded from charset, +2 more for full and empty")
+        # Add the full and empty characters, but only if they are not already included
+        if not self.full_char.index:
+            self.full_char.index = len(self.chars)
+            self.chars.append(self.full_char)
+            msg += " +1 full char"
+            self.num_chars += 1
+
+        if not self.empty_char.index:
+            self.empty_char.index = len(self.chars)
+            self.chars.append(self.empty_char)
+            msg += " +1 empty char"
+            self.num_chars += 1
+
+        print(f"{self.num_chars} total characters loaded from charset {msg}")
 
         return
 
@@ -273,18 +317,40 @@ class Charset:
         else:
             raise Exception("No skip_chars present in metadata json")
 
-    def make_charset_index_table(self):
+    def make_charset_index_table(self, columns=8, column_width=48):
         """Generate an image showing each character and their corresponding index in the charset they were loaded from.
-        This is needed for model training, as those indexes will become the labels"""
+        This is needed for model training, as those indexes will become the labels.
+        
+        Args:
+            columns: Number of columns to use in the layout
+            column_width: Width of each column in pixels (increased to accommodate character + index)
+        """
         char_width, char_height = self.char_width, self.char_height
-        size = (len(self) * char_height, char_width * 5)
-        img = np.zeros(size, dtype=np.uint8)
+        rows = (len(self) + columns - 1) // columns  # Ceiling division
+        
+        # Calculate total image size
+        img_width = columns * column_width
+        img_height = rows * char_height
+        img = np.zeros((img_height, img_width), dtype=np.uint8)
 
         for i, character in enumerate(self.chars):
-            img[i * char_height: (i + 1) * char_height, 0:char_width] = character.img
-            color = (255, 255, 255)
-            cv.putText(img, str(character.index), (char_width + 3, ((i + 1) * char_height) - 1), cv.FONT_HERSHEY_PLAIN,
-                       .75, color)
+            col = i // rows
+            row = i % rows
+            
+            # Calculate position for this cell
+            x = col * column_width
+            y = row * char_height
+            print(f"Character: {character}, Index: {character.index}, Position: ({x}, {y}) // char_width: {char_width}, char_height: {char_height}")
+            
+            # Place character image (left side of column)
+            char_img = character.img
+            img[y:y+char_height, x:x+char_width] = char_img
+            
+            # Add index text (right side of column)
+            text = str(character.index)
+            text_x = x + char_width + 3  # Small padding after character
+            text_y = y + char_height - 1 # Slight vertical adjustment for better alignment
+            cv.putText(img, text, (text_x, text_y), cv.FONT_HERSHEY_PLAIN, 0.75, 255)
 
         return img
 

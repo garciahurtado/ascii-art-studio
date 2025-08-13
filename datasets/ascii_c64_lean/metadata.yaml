@@ -1,7 +1,7 @@
-cmdline: python generate_training_data.py ['--inverted', '--dataset', 'ascii_c64_lean']
-created: 2025-08-11_07:51:41
+cmdline: python generate_training_data.py ['--inverted', '--dataset', 'ascii_c64_lean',
+  '--force']
+created: 2025-08-13_19:29:51
 description: ASCII art dataset generated from c64-lean.png character set
-num_classes: 248
 features:
 - description: 8x8 grayscale character patches
   dtype: float32
@@ -14,11 +14,12 @@ features:
   name: label
 license: MIT
 name: ascii_c64_lean
+num_classes: 248
 source: https://github.com/garciahurtad/ascii_movie_pytorch
 statistics:
   class_distribution: n/a
   num_labels: 250
-  num_samples: 2013912
-  num_source_files: 510
+  num_samples: 26448
+  num_source_files: 5
 train_split: n/a
-version: 0.0.8
+version: 0.0.16

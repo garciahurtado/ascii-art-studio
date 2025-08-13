@@ -164,11 +164,12 @@ def create_training_data(min_dims: Dimensions, max_dims: Dimensions, export_csv=
         if not os.path.exists(out_data_dir):
             os.makedirs(out_data_dir)
         else:
-            for file in os.listdir(out_data_dir):
-                full_path = os.path.join(out_data_dir, file)
-                if os.path.isfile(full_path):
-                    raise FileExistsError(
-                        f'{out_data_dir} is not empty! Please remove any files in this directory before processing new data.')
+            if not force:
+                for file in os.listdir(out_data_dir):
+                    full_path = os.path.join(out_data_dir, file)
+                    if os.path.isfile(full_path):
+                        raise FileExistsError(
+                            f'{out_data_dir} is not empty! Please remove any files in this directory before processing new data.')
 
     if not os.path.exists(OUT_IMG_DIR):
         os.makedirs(OUT_IMG_DIR)
@@ -180,12 +181,12 @@ def create_training_data(min_dims: Dimensions, max_dims: Dimensions, export_csv=
                     raise FileExistsError(
                         f'Directory {OUT_IMG_DIR} is not empty! Please remove any .PNG files in this directory before processing new data.')
 
-    # Create an image of the charset that we will be using for this dataset generation, so we can save it for reference
+    # Create an character index reference image that we will be used for this dataset generation, so we can save it for reference
     # along with the training data
-    out_charset_table = OUT_IMG_DIR + f'{dataset_name}-ascii-table.png'
+    charset_table_file = os.path.join(out_data_dir, f'{dataset_name}-ascii-table.png')
     index_table = charset.make_charset_index_table()
-    cv.imwrite(out_charset_table, index_table)
-    print(f'ASCII index table: {out_charset_table} created')
+    cv.imwrite(charset_table_file, index_table)
+    print(f'ASCII index table: {charset_table_file} created')
 
     all_args = []
     all_kwargs = []

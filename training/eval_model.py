@@ -14,26 +14,42 @@ from tqdm import tqdm
 import time
 
 from charset import Charset
+from const import DATASETS_ROOT
 from datasets.ascii_c64.ascii_c64_dataset import AsciiC64Dataset
 import datasets.data_utils as data
 import pytorch.model_manager as models
-
-
-def eval_model(dataset_class, dataset_name, model_filename, num_classes, charset):
+def eval_model(dataset_class, dataset_name, num_classes, charset, dataset_subdir=None, model_subdir=None, version='0'):
     batch_size = 20000
     device = data.get_device()
 
+    model_filename = os.path.join(model_subdir, dataset_name)
     model = models.load_model(dataset_name, model_filename, num_labels=num_classes)
     model.to(device)
     model.eval()  # put the model in inference mode
 
     # Load the test dataset
-    dataset = data.get_dataset(dataset_class=dataset_class, subdir='processed/test')
+    dataset = data.get_dataset(dataset_class=dataset_class, subdir=dataset_subdir)
     dataloader = torch.utils.data.DataLoader(
         dataset,
         batch_size=batch_size,
         shuffle=True,
         num_workers=4)
+
+    dataset_root = os.path.join(DATASETS_ROOT, dataset_name)
+    reports_root = os.path.join(dataset_root, 'reports')
+
+    # check that the dir exists before we get too far
+    if not os.path.exists(reports_root):
+        raise Exception(f"Dataset 'reports' directory {reports_root} does not exist!")
+
+    if dataset_subdir:
+        dataset_subdir = dataset_subdir.replace('/', '.')
+        dataset_subdir = dataset_subdir + '-'
+
+    model_version_name = f'{dataset_name}-v{version}'
+    data_file = os.path.join(reports_root, f'{model_version_name}-{dataset_subdir}class_accuracy.txt')
+    image_file = os.path.join(reports_root, f'{model_version_name}-{dataset_subdir}charset_heatmap.png')
+
 
     # Initialize metrics
     metric = torchmetrics.Accuracy(task='multiclass', num_classes=num_classes, average='weighted')
@@ -74,14 +90,10 @@ def eval_model(dataset_class, dataset_name, model_filename, num_classes, charset
 
     # Calculate accuracy per class
     report = classification_report(all_true_targets, all_output_labels, output_dict=True)
-
-    data_root = dataset.data_root
-    data_root = os.path.dirname(data_root)
-    filename = os.path.join(data_root, f'{model_filename}-class-accuracy.txt')
-    print(f"Saving class accuracy to {filename}....")
+    print(f"Saving class accuracy to {data_file}....")
 
     class_accy = {}
-    with open(filename, "w") as file:
+    with open(data_file, "w") as file:
         for i in range(num_classes):
             class_name = str(i)
             if class_name in report.keys():
@@ -101,7 +113,7 @@ def eval_model(dataset_class, dataset_name, model_filename, num_classes, charset
     time_per_label = duration / total_samples
     preds_per_second = float(1 / time_per_label)
 
-    make_charset_accuracy_map(charset.charset_img, class_accy, model_filename)
+    make_charset_accuracy_map(charset.charset_img, class_accy, image_file)
 
     print()
     print("=== RESULTS ===")
@@ -113,7 +125,11 @@ def eval_model(dataset_class, dataset_name, model_filename, num_classes, charset
     print(f"Inferred {total_samples} in {duration:.2f} seconds ({preds_per_second:.2f}/s)")
     print()
 
-def make_charset_accuracy_map(charset_image, accy_report, model_name):
+
+
+
+from datasets.ascii_c64_lean.ascii_c64_lean_dataset import AsciiC64LeanDataset
+def make_charset_accuracy_map(charset_image, accy_report, image_path):
     # Create a copy of the charset image
     charset_image = charset_image.copy()
     charset_image = cv.cvtColor(charset_image, cv.COLOR_GRAY2BGR)
@@ -162,9 +178,8 @@ def make_charset_accuracy_map(charset_image, accy_report, model_name):
         )
 
     # Save the overlay image
-    accy_image_path = f'./resources/eval/charset_accuracy_map-{model_name}.png'
-    cv.imwrite(accy_image_path, charset_image)
-    print(f'Written character accuracy map to: {accy_image_path}')
+    cv.imwrite(image_path, charset_image)
+    print(f'Written character accuracy map to: {image_path}')
 
 def color_accuracy(accuracy):
     # Interpolate between red (0%, 0, 255), yellow (50%, 255, 255), and green (100%, 0, 255)
@@ -235,23 +250,31 @@ def visTensor(tensor, ch=0, allkernels=False, nrow=8, padding=1):
     plt.imshow(mygrid.transpose((1, 2, 0)))
 
 if __name__ == "__main__":
-    dataset_class = AsciiC64Dataset
-    dataset_name = 'ascii_c64'
-    model_filename = 'ascii_c64'
-    num_classes = 254
-    char_width = 8
-    char_height = 8
-    charset = Charset(char_width, char_height)
-    charset_name = 'c64.png'
-    charset.load(charset_name)
-
     parser = argparse.ArgumentParser(description='Evaluate a model')
     parser.add_argument('--write-charset', action='store_true',
-                        help='Write the derived charset, except for skipped characters')
+                        help='Write the derived charset, except for skipped characters', default=False)
+    parser.add_argument('--subdir', action='store_true', help='Subdirectory for the dataset', default='processed/train')
     args = parser.parse_args()
+    dataset_subdir = args.subdir
+
+    char_width, char_height = 8, 8
+    charset = Charset(char_width, char_height)
+    charset_name = 'c64-lean.png'
+    charset.load(charset_name)
+
+    dataset_class = AsciiC64LeanDataset
+    dataset_name = 'ascii_c64_lean'
+    num_classes = charset.num_chars
+
+    model_filename = dataset_name
+    model_version = '1'
+    model_subdir = f'{dataset_name}-v{model_version}'
+
+    PALETTE_NAME = 'atari.png'
+
 
     if args.write_charset:
         charset.write_without_skip_chars()
         exit(1)
     else:
-        eval_model(dataset_class, dataset_name, model_filename, num_classes, charset)
+        eval_model(dataset_class, dataset_name, num_classes, charset, dataset_subdir=dataset_subdir, model_subdir=model_subdir)

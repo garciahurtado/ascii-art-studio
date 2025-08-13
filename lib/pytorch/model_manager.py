@@ -57,17 +57,24 @@ def save_model_source(source_filename, dataset, target_dir):
     target_filename = os.path.join(target_dir, dataset + ".py")
     shutil.copyfile(source_filename, target_filename)
 
-def make_model_directory(model_name: str, dataset: str, base_dir: str = None) -> str:
+def make_model_dir(dataset: str, base_dir: str = None) -> str:
     """
+    Creates a new directory for the model and its associated files like this:
+
+    <models_root>/<dataset>/<model_name>-<dataset>-<timestamp>
+
+    ie:
+    models/ascii_c64/ascii-c64-2022-04-10_00-00-00
+
     Don't ever call this function from any of the code in this module, instead
     pass the saved model directory as a parameter to those functions. It should only be called
     once per training run
     """
-    timestamp = datetime.now().strftime("%b-%d-%Y_%H-%M-%S")
+    timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     if base_dir is None:
         base_dir = MODELS_ROOT
 
-    full_dir = os.path.join(base_dir, dataset, f"{model_name}-{dataset}-{timestamp}")
+    full_dir = os.path.join(base_dir, dataset, f"{dataset}-{timestamp}")
 
     if os.path.exists(full_dir):
         printc(f"ERROR: model directory already exists: {full_dir}")

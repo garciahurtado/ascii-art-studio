@@ -32,10 +32,12 @@ from schemas import validate_conversion_data
 
 # Initialize the converter with C64 charset
 CHAR_WIDTH, CHAR_HEIGHT = 8, 8
-CHARSET_NAME = 'c64.png'
-MODEL_FILENAME = 'ascii_c64'
-MODEL_VERSION = '28'
-MODEL_CHARSET = 'ascii_c64'
+CHARSET_NAME = 'c64-lean.png'
+DATASET_NAME = 'ascii_c64_lean'
+MODEL_FILENAME = DATASET_NAME
+# MODEL_VERSION = '28'      # mlflow run: agreeable-cow-977
+MODEL_VERSION = '1'         # mlflow run: traveling-bird-743
+MODEL_SUBDIR = os.path.join(DATASET_NAME, f'{DATASET_NAME}-v{MODEL_VERSION}')
 PALETTE_NAME = 'atari.png'
 
 # CHARSET_NAME = 'amstrad-cpc.png'
@@ -56,15 +58,15 @@ def init_converter():
     # Load the C64 charset
     charset = Charset(CHAR_WIDTH, CHAR_HEIGHT)
     charset.load(CHARSET_NAME, invert=False)
-    NUM_LABELS = len(charset.chars)
+    NUM_LABELS = charset.num_chars
 
     # Initialize the converter with C64 model
     converter = NeuralAsciiConverterPytorch(
-        charset=charset,
-        model_filename=MODEL_FILENAME,
-        model_charset=MODEL_CHARSET,
-        charsize=[CHAR_WIDTH, CHAR_HEIGHT],
-        num_labels=NUM_LABELS
+        charset,
+        MODEL_FILENAME,
+        [CHAR_WIDTH, CHAR_HEIGHT],
+        num_labels=NUM_LABELS,
+        model_subdir=MODEL_SUBDIR
     )
 
     return converter

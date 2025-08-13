@@ -16,19 +16,18 @@ from pytorch import model_manager
 class NeuralAsciiConverterPytorch(AsciiConverter):
     model: AsciiClassifierNetwork = None
 
-    def __init__(self, charset: Charset, model_filename, model_charset, charsize, num_labels=None):
+    def __init__(self, charset: Charset, model_filename, charsize, num_labels=None, model_subdir=None):
         self.charset: Charset = charset
         self.char_width, self.char_height = charsize
 
         # Index characters by their position in which they were loaded into the charset
         self.charmap = {character.index: character for character in charset}
-        self.load_model(model_charset, model_filename, num_labels)
+        self.load_model(model_subdir, model_filename, num_labels)
 
-    def load_model(self, charset_name, filename, num_labels):
+    def load_model(self, model_subdir, filename, num_labels):
         # Load ML model source code and pretrained weights from model file
-        self.model = model_manager.load_model(charset_name, filename, num_labels)
+        self.model = model_manager.load_model(model_subdir, filename, num_labels)
         self.model = self.model.cuda()
-
         return self.model
 
     def convert_image(self, input_image):
