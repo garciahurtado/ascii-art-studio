@@ -43,9 +43,9 @@ def train_model(num_labels, dataset_class, charset):
         'train_test_split': 0.8,  # This is purely for logging, not functional
         'num_epochs': 20,
         'num_labels': num_labels,
-        'learning_rate': 0.002,
+        'learning_rate': 0.001,
         'decay_rate': 0.98,
-        'decay_every_samples': 192000,
+        'decay_every_samples': 64000,
         'test_every_steps': 64,
         'log_every': 4,
         'augment_training_data': False  # Master switch for augmentation
@@ -192,11 +192,6 @@ def train(class_counts, trainloader, testloader, train_params, dataset_name, cha
     # Set up the learning rate scheduler
     scheduler = optim.lr_scheduler.ExponentialLR(optimizer, train_params['decay_rate'])
 
-    # Set up Tensorboard writer
-    # Add image embeddings
-    # images, labels = select_n_random(trainset.data, trainset.targets, 1000)
-    # add_image_embeddings(writer, images, labels, classes)
-
     perf = PerformanceMonitor()
     test_perf = PerformanceMonitor()
 
@@ -325,7 +320,7 @@ def train(class_counts, trainloader, testloader, train_params, dataset_name, cha
         'timestamp': datetime.now().isoformat()
     }, final_model_path)
 
-    # Save the final model weights to MLFlow
+    # Save the final model weights as an artifact to MLFlow
     ml.log_artifact(final_model_path)
 
     # Log the final model to MLFlow
@@ -335,6 +330,9 @@ def train(class_counts, trainloader, testloader, train_params, dataset_name, cha
         registered_model_name=full_model_name,
         pip_requirements=[f"torch=={torch.__version__}"]
     )
+
+    # We can now delete the checkpoints
+    # @ TODO
 
 
 def weights_init_uniform_rule(model):

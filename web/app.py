@@ -1,5 +1,6 @@
 import os
 import sys
+import time
 import traceback
 import uuid
 
@@ -225,6 +226,7 @@ def convert_image():
         )
 
         logger.info(f"Starting image processing: {width}x{height}, brightness={brightness}, contrast={contrast}")
+        start_time = time.time()
         final_img = pipeline.run(img)
 
         # Save the contrast image, for debugging. Create a GUID type filename
@@ -242,7 +244,8 @@ def convert_image():
         img_pil.save(img_io, 'PNG')
         img_io.seek(0)
 
-        logger.info("Image processing completed successfully")
+        elapsed_time = time.time() - start_time
+        logger.info(f"Image processing completed successfully in {elapsed_time:.2f} seconds")
         return send_file(
             img_io,
             mimetype='image/png',
